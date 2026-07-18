@@ -1,0 +1,39 @@
+# Supabase CLI config. Used for local `supabase start` (the strong, real-auth release gate) and as a
+# reference for the cloud dashboard settings. In cloud, Auth (Site URL, redirect URLs, SMTP) and the
+# exposed schemas are set in the dashboard or via `supabase config push` — see DEPLOY.md.
+project_id = "sangam"
+
+[api]
+enabled = true
+port = 54321
+# CRITICAL: the app queries the `app` schema via PostgREST (schedule reads use app.* tables). It must be
+# exposed, or those requests 404. In cloud: Dashboard -> Settings -> API -> Exposed schemas -> add `app`.
+schemas = ["public", "app"]
+extra_search_path = ["public", "app"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 16
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+# Local email capture for magic-link testing: http://localhost:54324
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+# The app signs guests in with an email magic-link / OTP (app/app/login). Locally, emails land in Inbucket.
+# In cloud, configure a real SMTP sender in the dashboard for production volume.
