@@ -65,5 +65,11 @@ $$;
 
 revoke execute on function public.propose_rsvp_change(uuid, app.attendance_status) from public;
 revoke execute on function public.confirm_rsvp_change(uuid, integer) from public;
+-- Supabase's default privileges GRANT EXECUTE on new `public` functions directly to anon & authenticated,
+-- so the `from public` revokes above do NOT strip anon's direct grant. Revoke from anon explicitly — the
+-- wrappers are for signed-in users only (the inner app.* functions reject a null identity, but anon should
+-- not be able to invoke the RPC at all). Verified live via has_function_privilege.
+revoke execute on function public.propose_rsvp_change(uuid, app.attendance_status) from anon;
+revoke execute on function public.confirm_rsvp_change(uuid, integer) from anon;
 grant  execute on function public.propose_rsvp_change(uuid, app.attendance_status) to authenticated;
 grant  execute on function public.confirm_rsvp_change(uuid, integer) to authenticated;
