@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getHostDashboard, type WeddingDashboard, type EventRollup } from '@/lib/data/host';
@@ -171,9 +172,14 @@ export default async function HostPage() {
     <main style={wrap}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
         <div style={{ fontSize: 13, color: '#777' }}>Organizer view · {user.email}</div>
-        <form action="/auth/signout" method="post">
-          <button type="submit" style={{ padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>Sign out</button>
-        </form>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {dashboards.length > 0 ? (
+            <Link href="/host/manage" style={{ fontSize: 13, padding: '6px 12px', background: '#1d3b5c', color: '#fff', borderRadius: 6, textDecoration: 'none' }}>Manage guests &amp; invitations →</Link>
+          ) : null}
+          <form action="/auth/signout" method="post">
+            <button type="submit" style={{ padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>Sign out</button>
+          </form>
+        </div>
       </header>
 
       {dashboards.length === 0 ? (

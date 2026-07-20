@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { serverClientRW } from '@/lib/supabase/serverClient';
+import { linkSignedInAccount } from '@/lib/auth/link';
 
 // Landing point for the magic-link / OTP email. Establishes the session cookies, then forwards to `next`.
 // Supports both the PKCE `code` flow (@supabase/ssr default) and the `token_hash`+`type` email template.
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } else {
     return redirectTo('/login?error=callback');
   }
+
+  // Bind this account to any guest invited at their verified email (best-effort; never blocks sign-in).
+  const { data: userData } = await supabase.auth.getUser();
+  if (userData.user) await linkSignedInAccount(userData.user.id);
 
   return redirectTo(next);
 }

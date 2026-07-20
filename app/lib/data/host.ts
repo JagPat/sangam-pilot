@@ -1,9 +1,11 @@
 import type { AppSupabaseClient } from '../supabase/clients';
+import { ownedWeddingIds } from './owner';
 
 // The organizer (wedding owner) dashboard — READ ONLY. Every query runs under the owner's own session.
-// The aggregate views (instance_rsvp_counts / caterer_report / attendance_expanded) are owner-scoped by
-// construction (security_invoker + an is_wedding_owner filter), so a non-owner simply gets no rows back —
-// that is how we detect "not an organizer". Base tables are read under the owner_write/owner-read RLS.
+// Ownership is established from operator_role (ownedWeddingIds), so the dashboard is correct even before
+// any invitations exist. The aggregate views (instance_rsvp_counts / caterer_report / attendance_expanded)
+// are owner-scoped by construction (security_invoker + an is_wedding_owner filter). Base tables are read
+// under the owner_write/owner-read RLS.
 
 export type EventRollup = {
   eventInstanceId: string;
@@ -39,14 +41,15 @@ export type WeddingDashboard = {
 export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDashboard[]> {
   const app = db.schema('app');
 
-  // Owner-only aggregate view. Empty => this account owns no wedding (not an organizer).
+  // Which weddings does this account own? Robust even before any invitation exists (empty => not an organizer).
+  const weddingIds = await ownedWeddingIds(db);
+  if (weddingIds.length === 0) return [];
+
   const { data: counts, error: eCounts } = await app
     .from('instance_rsvp_counts')
-    .select('wedding_id, event_instance_id, accepted, declined, tentative');
+    .select('wedding_id, event_instance_id, accepted, declined, tentative')
+    .in('wedding_id', weddingIds);
   if (eCounts) throw eCounts;
-  if (!counts || counts.length === 0) return [];
-
-  const weddingIds = [...new Set(counts.map((r) => r.wedding_id))];
 
   const [weds, insts, funcs, venues, guests, igs, caterer, att] = await Promise.all([
     app.from('wedding').select('id, title, couple_names, start_date, end_date').in('id', weddingIds),

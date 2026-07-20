@@ -23,6 +23,10 @@ type InvitationGuestRow = { id: string; wedding_id: string; invitation_id: strin
 type EventAttendanceRow = { id: string; wedding_id: string; invitation_guest_id: string; status: string; responded_channel: string; responded_as: string; row_version: number };
 type GuestRow = { id: string; wedding_id: string; household_id: string; full_name: string; self_account_id: string | null; show_in_directory: boolean };
 type WeddingRow = { id: string; title: string; couple_names: string | null; default_timezone: string; start_date: string | null; end_date: string | null };
+type HouseholdRow = { id: string; wedding_id: string; name: string };
+type HouseholdContactRow = { id: string; wedding_id: string; household_id: string; guest_id: string | null; channel: string; value: string; is_shared: boolean };
+type InvitationRow = { id: string; wedding_id: string; household_id: string; event_instance_id: string; status: string; rsvp_deadline_at: string | null; plus_one_allowance: number };
+type OperatorRoleRow = { id: string; wedding_id: string; account_id: string; role: string; host_group_id: string | null };
 
 // Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
 // the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
@@ -68,6 +72,10 @@ export type Database = {
       event_attendance: { Row: EventAttendanceRow; Insert: Partial<EventAttendanceRow>; Update: Partial<EventAttendanceRow>; Relationships: [] };
       guest: { Row: GuestRow; Insert: Partial<GuestRow>; Update: Partial<GuestRow>; Relationships: [] };
       wedding: { Row: WeddingRow; Insert: Partial<WeddingRow>; Update: Partial<WeddingRow>; Relationships: [] };
+      household: { Row: HouseholdRow; Insert: Partial<HouseholdRow>; Update: Partial<HouseholdRow>; Relationships: [] };
+      household_contact: { Row: HouseholdContactRow; Insert: Partial<HouseholdContactRow>; Update: Partial<HouseholdContactRow>; Relationships: [] };
+      invitation: { Row: InvitationRow; Insert: Partial<InvitationRow>; Update: Partial<InvitationRow>; Relationships: [] };
+      operator_role: { Row: OperatorRoleRow; Insert: Partial<OperatorRoleRow>; Update: Partial<OperatorRoleRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
@@ -93,6 +101,17 @@ export type Database = {
       };
       issue_access_link: {
         Args: { p_wedding: string; p_guest: string; p_contact: string; p_ttl?: string };
+        Returns: string;
+      };
+      // The signed-in account's app.account id (from auth.uid()); null if no verified session.
+      current_account_id: {
+        Args: Record<string, never>;
+        Returns: string | null;
+      };
+      // Service-only: bind the verified auth user to any guest whose personal email matches (returns the
+      // resolved account id). Callable only via serviceCommand.
+      link_signed_in_account: {
+        Args: { p_auth_user_id: string };
         Returns: string;
       };
     };

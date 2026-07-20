@@ -23,10 +23,10 @@ export function userClient(cookies: CookieMethodsServer) {
 // boundary (pageClient). Same runtime object; this only reconciles the two packages' generic shapes.
 export type AppSupabaseClient = SupabaseClient<Database>;
 
-// 'invite_exchange' is the one path where the wedding is NOT known up front — the invite TOKEN is the
-// scoping authority (app.redeem_and_bind derives the wedding from it, atomically). Every other purpose
-// must pass an explicit wedding context.
-type ServicePurpose = 'guest_import' | 'whatsapp_webhook' | 'scheduled_job' | 'invite_exchange';
+// 'invite_exchange' and 'account_link' are the two paths where the wedding is NOT known up front — the
+// invite TOKEN (redeem_and_bind) or the signed-in email (link_signed_in_account, which may match guests in
+// several weddings) is the scoping authority. Every other purpose must pass an explicit wedding context.
+type ServicePurpose = 'guest_import' | 'whatsapp_webhook' | 'scheduled_job' | 'invite_exchange' | 'account_link';
 
 // Narrow, named service-role command. Server-only. The raw client is never exported.
 export async function serviceCommand<T>(
@@ -35,7 +35,7 @@ export async function serviceCommand<T>(
   fn: (db: SupabaseClient<Database>, ctx: { weddingId: string | null; purpose: ServicePurpose }) => Promise<T>,
 ): Promise<T> {
   if (typeof window !== 'undefined') throw new Error('serviceCommand must run server-side only');
-  if (!weddingId && purpose !== 'invite_exchange') {
+  if (!weddingId && purpose !== 'invite_exchange' && purpose !== 'account_link') {
     throw new Error('serviceCommand requires an explicit weddingId context');
   }
   const db = createClient<Database>(URL, SERVICE, { auth: { persistSession: false } });

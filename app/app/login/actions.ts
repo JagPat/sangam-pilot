@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { serverClientRW } from '@/lib/supabase/serverClient';
+import { linkSignedInAccount } from '@/lib/auth/link';
 
 // Sends a Supabase email magic-link / OTP. Clicking it lands on /auth/callback, which establishes the
 // session. Email is normalized (lower/trim) to match the recipient-binding hash used by the invite flow.
@@ -38,7 +39,9 @@ export async function verifyCode(formData: FormData): Promise<void> {
   if (!email || !code) backToCode();
 
   const supabase = await serverClientRW();
-  const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+  const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
   if (error) backToCode();
+  // Bind this account to any guest invited at their verified email (best-effort; never blocks sign-in).
+  if (data.user) await linkSignedInAccount(data.user.id);
   redirect(next);
 }

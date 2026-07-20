@@ -1,0 +1,253 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { serverClientRW } from '@/lib/supabase/serverClient';
+
+// Organizer guest + invitation management. Every write runs under the OWNER's own session, so the existing
+// owner_write RLS policies (is_wedding_owner) are the real guard — a non-owner's write is denied by the
+// database, not just the UI. RSVPs are deliberately NOT touched here: attendance is written only through
+// the two-step propose/confirm command path, and this screen never uses the service role.
+
+function s(fd: FormData, k: string): string {
+  return String(fd.get(k) ?? '').trim();
+}
+
+function done(): never {
+  revalidatePath('/host/manage');
+  revalidatePath('/host');
+  redirect('/host/manage?ok=1');
+}
+
+function fail(code: string): never {
+  redirect(`/host/manage?err=${encodeURIComponent(code)}`);
+}
+
+// ---- Add a guest (into an existing or brand-new household), with an optional sign-in email ----
+export async function addGuest(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const fullName = s(fd, 'fullName');
+  const email = s(fd, 'email').toLowerCase();
+  const householdId = s(fd, 'householdId');
+  const newHousehold = s(fd, 'newHouseholdName');
+  if (!weddingId || !fullName) fail('name');
+
+  let ok = true;
+  let code = 'save';
+  try {
+    const app = (await serverClientRW()).schema('app');
+
+    let hhId = householdId;
+    if (!hhId && newHousehold) {
+      const { data, error } = await app.from('household').insert({ wedding_id: weddingId, name: newHousehold }).select('id').single();
+      if (error) throw error;
+      hhId = data.id;
+    }
+
+    if (!hhId) {
+      ok = false;
+      code = 'household';
+    } else {
+      const { data: g, error: eg } = await app
+        .from('guest')
+        .insert({ wedding_id: weddingId, household_id: hhId, full_name: fullName })
+        .select('id')
+        .single();
+      if (eg) throw eg;
+
+      if (email) {
+        const { error: ec } = await app
+          .from('household_contact')
+          .insert({ wedding_id: weddingId, household_id: hhId, guest_id: g.id, channel: 'email', value: email, is_shared: false });
+        if (ec) throw ec;
+      }
+    }
+  } catch (e) {
+    console.error('[sangam manage] addGuest', e);
+    ok = false;
+    code = 'save';
+  }
+  if (!ok) fail(code);
+  done();
+}
+
+// ---- Edit a guest's name / sign-in email ----
+export async function updateGuest(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  const householdId = s(fd, 'householdId');
+  const fullName = s(fd, 'fullName');
+  const email = s(fd, 'email').toLowerCase();
+  if (!weddingId || !guestId) fail('save');
+
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+
+    if (fullName) {
+      const { error } = await app.from('guest').update({ full_name: fullName }).eq('wedding_id', weddingId).eq('id', guestId);
+      if (error) throw error;
+    }
+
+    if (email) {
+      const { data: c, error: eC } = await app
+        .from('household_contact')
+        .select('id')
+        .eq('wedding_id', weddingId)
+        .eq('guest_id', guestId)
+        .eq('channel', 'email')
+        .limit(1)
+        .maybeSingle();
+      if (eC) throw eC;
+      if (c) {
+        const { error } = await app.from('household_contact').update({ value: email }).eq('wedding_id', weddingId).eq('id', c.id);
+        if (error) throw error;
+      } else {
+        const { error } = await app
+          .from('household_contact')
+          .insert({ wedding_id: weddingId, household_id: householdId, guest_id: guestId, channel: 'email', value: email, is_shared: false });
+        if (error) throw error;
+      }
+    }
+  } catch (e) {
+    console.error('[sangam manage] updateGuest', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+// ---- Invite a guest to one event (find-or-create the household's invitation, mark it 'sent', add the guest) ----
+export async function inviteGuest(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  const householdId = s(fd, 'householdId');
+  const instanceId = s(fd, 'instanceId');
+  if (!weddingId || !guestId || !householdId || !instanceId) fail('invite');
+
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+
+    const { data: inv, error: eInv } = await app
+      .from('invitation')
+      .select('id, status')
+      .eq('wedding_id', weddingId)
+      .eq('household_id', householdId)
+      .eq('event_instance_id', instanceId)
+      .limit(1)
+      .maybeSingle();
+    if (eInv) throw eInv;
+
+    let invId = inv?.id;
+    if (!invId) {
+      const { data: created, error: eC } = await app
+        .from('invitation')
+        .insert({ wedding_id: weddingId, household_id: householdId, event_instance_id: instanceId, status: 'sent' })
+        .select('id')
+        .single();
+      if (eC) throw eC;
+      invId = created.id;
+    } else if (inv!.status !== 'sent') {
+      const { error: eU } = await app.from('invitation').update({ status: 'sent' }).eq('wedding_id', weddingId).eq('id', invId);
+      if (eU) throw eU;
+    }
+
+    // Idempotent: unique (wedding_id, event_instance_id, guest_id) — ignore a re-invite.
+    const { error: eIg } = await app
+      .from('invitation_guest')
+      .upsert(
+        { wedding_id: weddingId, invitation_id: invId, event_instance_id: instanceId, guest_id: guestId },
+        { onConflict: 'wedding_id,event_instance_id,guest_id', ignoreDuplicates: true },
+      );
+    if (eIg) throw eIg;
+  } catch (e) {
+    console.error('[sangam manage] inviteGuest', e);
+    ok = false;
+  }
+  if (!ok) fail('invite');
+  done();
+}
+
+// ---- Remove a guest from one event (only if they have not yet responded) ----
+export async function uninviteGuest(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  const instanceId = s(fd, 'instanceId');
+  if (!weddingId || !guestId || !instanceId) fail('uninvite');
+
+  let ok = true;
+  let responded = false;
+  try {
+    const app = (await serverClientRW()).schema('app');
+
+    const { data: ig, error: eIg } = await app
+      .from('invitation_guest')
+      .select('id')
+      .eq('wedding_id', weddingId)
+      .eq('event_instance_id', instanceId)
+      .eq('guest_id', guestId)
+      .limit(1)
+      .maybeSingle();
+    if (eIg) throw eIg;
+
+    if (ig) {
+      const { data: at, error: eAt } = await app
+        .from('event_attendance')
+        .select('id')
+        .eq('wedding_id', weddingId)
+        .eq('invitation_guest_id', ig.id)
+        .limit(1)
+        .maybeSingle();
+      if (eAt) throw eAt;
+      if (at) {
+        responded = true; // preserve the RSVP + its audit trail; don't delete attendance from here
+      } else {
+        const { error: eD } = await app.from('invitation_guest').delete().eq('wedding_id', weddingId).eq('id', ig.id);
+        if (eD) throw eD;
+      }
+    }
+  } catch (e) {
+    console.error('[sangam manage] uninviteGuest', e);
+    ok = false;
+  }
+  if (responded) fail('responded');
+  if (!ok) fail('uninvite');
+  done();
+}
+
+// ---- Delete a guest entirely (only when they are not invited anywhere, to keep it non-destructive) ----
+export async function removeGuest(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  if (!weddingId || !guestId) fail('remove');
+
+  let ok = true;
+  let blocked = false;
+  try {
+    const app = (await serverClientRW()).schema('app');
+
+    const { data: ig, error: eIg } = await app
+      .from('invitation_guest')
+      .select('id')
+      .eq('wedding_id', weddingId)
+      .eq('guest_id', guestId)
+      .limit(1)
+      .maybeSingle();
+    if (eIg) throw eIg;
+
+    if (ig) {
+      blocked = true; // still invited somewhere → remove from those events first
+    } else {
+      await app.from('household_contact').delete().eq('wedding_id', weddingId).eq('guest_id', guestId);
+      const { error: eD } = await app.from('guest').delete().eq('wedding_id', weddingId).eq('id', guestId);
+      if (eD) throw eD;
+    }
+  } catch (e) {
+    console.error('[sangam manage] removeGuest', e);
+    ok = false;
+  }
+  if (blocked) fail('hasinvites');
+  if (!ok) fail('remove');
+  done();
+}
