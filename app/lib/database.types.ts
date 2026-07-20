@@ -114,6 +114,22 @@ export type Database = {
         Args: { p_auth_user_id: string };
         Returns: string;
       };
+      // Create a new wedding and make the caller its owner (returns the wedding id). authenticated-callable.
+      create_wedding: {
+        Args: { p_title: string; p_couple: string | null; p_tz: string | null; p_start: string | null; p_end: string | null };
+        Returns: string;
+      };
+      // Owner-only: create an event (its function + a dated instance); returns the instance id. p_wall is a
+      // wall-clock timestamp string, p_tz an IANA zone.
+      owner_create_event: {
+        Args: { p_wedding: string; p_name: string; p_type: string | null; p_venue: string | null; p_wall: string; p_tz: string | null };
+        Returns: string;
+      };
+      // Owner-only: edit/cancel an existing event.
+      owner_update_event: {
+        Args: { p_wedding: string; p_instance: string; p_name: string | null; p_type: string | null; p_venue: string | null; p_wall: string | null; p_tz: string | null; p_cancelled: boolean };
+        Returns: undefined;
+      };
     };
     Enums: EmptyMap;
     CompositeTypes: EmptyMap;

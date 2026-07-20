@@ -83,7 +83,7 @@ The app is Supabase-specific by design (`auth.uid()`, the `anon`/`authenticated`
 
 ## 5. Running a wedding (host operations)
 
-> **Guests and invitations are now managed in the app** — see §5.1. The initial wedding *shell* (the wedding row, venues, functions, and dated event instances) is still set up once through the Supabase **SQL Editor** using the service role; the copy-paste template below does that. Generate fresh UUIDs (`gen_random_uuid()` is used inline here so you don't have to).
+> **You can now do all of this in the app** — create a wedding, add its venues and events (§5.2), and add guests and invitations (§5.1), with no SQL. The copy-paste template below is kept as a reference (and a handy way to bulk-load a whole wedding in one statement). Generate fresh UUIDs (`gen_random_uuid()` is used inline here so you don't have to).
 
 ```sql
 -- ===== 1. Wedding =====
@@ -154,7 +154,17 @@ Open **sangam.vitan.in/host** and click **Manage guests & invitations** (top rig
 - **Invite / remove** — a guest × event grid: click **Invite** to invite a guest to an event (this opens RSVP for them), or **Remove** to take them off an event they have not answered yet. A guest who has already responded shows a 🔒 and cannot be removed, so their RSVP and its audit trail are never lost.
 - **Delete a guest** — available once they are not on any event.
 
-Every write runs as *you* (the owner) under the database's row-level security, so you can only ever touch your own wedding. When a guest you added signs in with that email, they are linked automatically and land on their schedule. Setting up the wedding's venues and events is still SQL today (§5) — those screens are the next step.
+Every write runs as *you* (the owner) under the database's row-level security, so you can only ever touch your own wedding. When a guest you added signs in with that email, they are linked automatically and land on their schedule.
+
+### 5.2 Creating a wedding, venues & events (no SQL)
+
+A signed-in person with no wedding yet sees a **Create a wedding** button on `/host`; creating one makes them its owner on the spot. From **sangam.vitan.in/host → Venues & events** (`/host/setup`) the owner can then, entirely in the app:
+
+- **Add / edit venues** — name, timezone, and an optional address.
+- **Add an event** — name, type, date & time, timezone, and (optionally) a venue. The app records the exact wall-clock time *and* its UTC offset, so cross-border times display correctly for every guest.
+- **Edit or cancel an event** — change its time or venue, or mark it cancelled (guests keep any RSVPs; a cancelled event is flagged, not deleted).
+
+The wedding/owner bootstrap and the event-time handling go through guarded `SECURITY DEFINER` functions (`create_wedding`, `owner_create_event`, `owner_update_event`); venues are plain owner writes. As everywhere, a non-owner is refused by the database.
 
 ---
 
@@ -202,13 +212,14 @@ Run on the live database and deployment on 2026-07-19:
 | Function surface | `anon` locked out of all functions; `authenticated` limited to the RLS helpers + RSVP wrappers; the account self-link is `service_role`-only; `service_role` full |
 | Adversarial suite | **ALL PASSED** — cross-wedding isolation, aggregate-view scoping, direct-write denial, closed/expired/past-deadline rejection, derived authority, cross-actor-confirm rejection, single-pending-proposal, recipient-bound single-use access links |
 | Organizer management (2026-07-20) | Owner adds a guest + email and invites them at `/host/manage` (owner-session writes under RLS, not service role); the guest signs in and is **auto-linked by verified email**; a non-owner sees 0 rows and is denied writes — all verified live |
+| Wedding setup (2026-07-20) | Owner creates a wedding (and becomes its owner), adds venues, and adds/edits/cancels events at `/host/setup`; event times store the correct instant + UTC offset (IST +330, US-Eastern −240 verified); a non-owner is denied — all verified live |
 
 ---
 
 ## 9. Operations
 
 - **Deploy:** push to `main` → Coolify rebuilds and redeploys. Base directory `app/`, port 3000.
-- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0008_fix_pgcrypto_search_path`.
+- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0010_owner_setup_rpcs`.
 - **Release gate:** the SQL suites in `supabase/tests/` (run as `anon`/`authenticated`/`service_role`) are the certification; keep them green before real-guest rollout.
 - **Env vars (server only):** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INVITE_EXCHANGE_ENABLED=0`. The service-role key must never be a `NEXT_PUBLIC_*` var.
 - **Rotate secrets** after go-live: Coolify root token, Supabase `service_role` key, DB password.
@@ -219,7 +230,7 @@ Run on the live database and deployment on 2026-07-19:
 
 - **Session length** — currently ~1 hour; extend so guests aren't re-signing-in mid-event (Auth setting).
 - **Guest self-serve email code** — put the code into the outgoing sign-in email template so guests don't need a host to generate one; add a production SMTP sender. (Both are Supabase Auth settings.)
-- **Host/admin screens** — **guests & invitations are now in-app** (§5.1). Still SQL: creating the wedding shell (venues, functions, event instances) — a setup screen for those is the next step.
+- **Host/admin screens** — guests & invitations (§5.1) **and** the wedding shell — create-a-wedding, venues, and events (§5.2) — are now all in-app. The SQL template (§5) remains for bulk/one-shot loading.
 - **Invite-by-link exchange** — built and now Supabase-compatible, still gated off until email OTP is verified end-to-end.
 - **WhatsApp bot** — a fast-follow that calls the same `propose`/`confirm` functions.
 - **Deploy cleanup** — the `next start` vs `output: standalone` log warning is cosmetic; fold into a future push.

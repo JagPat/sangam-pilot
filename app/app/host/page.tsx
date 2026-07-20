@@ -174,7 +174,10 @@ export default async function HostPage() {
         <div style={{ fontSize: 13, color: '#777' }}>Organizer view · {user.email}</div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {dashboards.length > 0 ? (
-            <Link href="/host/manage" style={{ fontSize: 13, padding: '6px 12px', background: '#1d3b5c', color: '#fff', borderRadius: 6, textDecoration: 'none' }}>Manage guests &amp; invitations →</Link>
+            <>
+              <Link href="/host/setup" style={{ fontSize: 13, padding: '6px 12px', border: '1px solid #ccc', borderRadius: 6, textDecoration: 'none', color: '#1d3b5c' }}>Venues &amp; events</Link>
+              <Link href="/host/manage" style={{ fontSize: 13, padding: '6px 12px', background: '#1d3b5c', color: '#fff', borderRadius: 6, textDecoration: 'none' }}>Manage guests &amp; invitations →</Link>
+            </>
           ) : null}
           <form action="/auth/signout" method="post">
             <button type="submit" style={{ padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>Sign out</button>
@@ -185,11 +188,11 @@ export default async function HostPage() {
       {dashboards.length === 0 ? (
         <div>
           <h1>Organizer dashboard</h1>
-          <p style={{ color: '#555' }}>
-            This is the organizer view. Your account isn’t set as an organizer (wedding owner) for any wedding yet, so
-            there’s nothing to show. If you expected to manage a wedding here, ask your administrator to grant you the
-            <code style={{ background: '#f1f3f4', padding: '1px 5px', borderRadius: 4 }}>wedding_owner</code> role.
+          <p style={{ color: '#555', maxWidth: 620 }}>
+            You’re not set up as an organizer for any wedding yet. You can create one now — you’ll become its owner and
+            can add venues, events, and guests, all from here.
           </p>
+          <Link href="/host/setup" style={{ display: 'inline-block', marginTop: 8, fontSize: 14, padding: '8px 16px', background: '#1d3b5c', color: '#fff', borderRadius: 6, textDecoration: 'none' }}>Create a wedding →</Link>
         </div>
       ) : (
         dashboards.map((w) => <WeddingBlock key={w.weddingId} w={w} />)
