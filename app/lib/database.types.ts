@@ -22,6 +22,13 @@ type EventInstanceRow = { id: string; wedding_id: string; event_function_id: str
 type InvitationGuestRow = { id: string; wedding_id: string; invitation_id: string; event_instance_id: string; guest_id: string };
 type EventAttendanceRow = { id: string; wedding_id: string; invitation_guest_id: string; status: string; responded_channel: string; responded_as: string; row_version: number };
 type GuestRow = { id: string; wedding_id: string; household_id: string; full_name: string; self_account_id: string | null; show_in_directory: boolean };
+type WeddingRow = { id: string; title: string; couple_names: string | null; default_timezone: string; start_date: string | null; end_date: string | null };
+
+// Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
+// the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
+type InstanceRsvpCountsRow = { wedding_id: string; event_instance_id: string; accepted: number; declined: number; tentative: number };
+type CatererReportRow = { wedding_id: string; event_instance_id: string; category: string; head_count: number };
+type AttendanceExpandedRow = { id: string; wedding_id: string; event_instance_id: string; guest_id: string; status: string; responded_by_account_id: string | null; responded_channel: string; responded_as: string; responded_at: string; row_version: number };
 
 export type Database = {
   app: {
@@ -60,8 +67,13 @@ export type Database = {
       invitation_guest: { Row: InvitationGuestRow; Insert: Partial<InvitationGuestRow>; Update: Partial<InvitationGuestRow>; Relationships: [] };
       event_attendance: { Row: EventAttendanceRow; Insert: Partial<EventAttendanceRow>; Update: Partial<EventAttendanceRow>; Relationships: [] };
       guest: { Row: GuestRow; Insert: Partial<GuestRow>; Update: Partial<GuestRow>; Relationships: [] };
+      wedding: { Row: WeddingRow; Insert: Partial<WeddingRow>; Update: Partial<WeddingRow>; Relationships: [] };
     };
-    Views: EmptyMap;
+    Views: {
+      instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
+      caterer_report: { Row: CatererReportRow; Relationships: [] };
+      attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
+    };
     Functions: {
       // Recipient-bound: the verified session contact must match the invited contact.
       redeem_and_bind: {
