@@ -192,7 +192,12 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
   return (
     <main style={wrap}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <Link href="/host" style={{ fontSize: 13, color: '#1d3b5c' }}>← Back to dashboard</Link>
+        <div style={{ display: 'flex', gap: 14, alignItems: 'baseline', flexWrap: 'wrap' }}>
+          <Link href="/host" style={{ fontSize: 13, color: '#1d3b5c' }}>← Dashboard</Link>
+          <Link href="/host/setup" style={{ fontSize: 13, color: '#1d3b5c' }}>Venues &amp; events</Link>
+          <Link href="/host/groups" style={{ fontSize: 13, color: '#1d3b5c' }}>Families &amp; admins</Link>
+          <Link href="/host/finance" style={{ fontSize: 13, color: '#1d3b5c' }}>Finance</Link>
+        </div>
         <form action="/auth/signout" method="post"><button type="submit" style={btn}>Sign out</button></form>
       </header>
 

@@ -120,11 +120,11 @@ function WeddingFinance({ w }: { w: FinanceWedding }) {
       <div style={{ marginBottom: 40 }}>
         <h1 style={{ margin: '0 0 8px' }}>Finance · {w.title}</h1>
         <div style={card}>
-          <p style={{ margin: 0, color: '#555' }}>
-            This wedding has no family groups yet. Finance tracking attributes each cost to a family (bride’s family, groom’s
-            family, the couple), so those groups need to exist first. Setting up family groups is a separate step from this
-            screen — once they’re in place, expenses and the net position appear here.
+          <p style={{ margin: '0 0 10px', color: '#555' }}>
+            This wedding has no families yet. Finance tracking attributes each cost to a family (bride’s family, groom’s
+            family, the couple), so those need to exist first — once they’re in place, expenses and the net position appear here.
           </p>
+          <Link href="/host/groups" style={{ ...btnPrimary, display: 'inline-block', textDecoration: 'none' }}>Set up families &amp; admins →</Link>
         </div>
       </div>
     );
@@ -201,6 +201,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
           <Link href="/host" style={{ fontSize: 13, color: '#1d3b5c' }}>← Dashboard</Link>
           <Link href="/host/manage" style={{ fontSize: 13, color: '#1d3b5c' }}>Guests</Link>
           <Link href="/host/setup" style={{ fontSize: 13, color: '#1d3b5c' }}>Venues &amp; events</Link>
+          <Link href="/host/groups" style={{ fontSize: 13, color: '#1d3b5c' }}>Families &amp; admins</Link>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ fontSize: 13, color: '#777' }}>{user.email}</span>

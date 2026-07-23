@@ -188,6 +188,8 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         <div style={{ display: 'flex', gap: 14, alignItems: 'baseline' }}>
           {weddings.length > 0 ? <Link href="/host" style={{ fontSize: 13, color: '#1d3b5c' }}>← Dashboard</Link> : null}
           {weddings.length > 0 ? <Link href="/host/manage" style={{ fontSize: 13, color: '#1d3b5c' }}>Guests &amp; invitations</Link> : null}
+          {weddings.length > 0 ? <Link href="/host/groups" style={{ fontSize: 13, color: '#1d3b5c' }}>Families &amp; admins</Link> : null}
+          {weddings.length > 0 ? <Link href="/host/finance" style={{ fontSize: 13, color: '#1d3b5c' }}>Finance</Link> : null}
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <span style={{ fontSize: 13, color: '#777' }}>{user.email}</span>
