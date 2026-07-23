@@ -1,6 +1,6 @@
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
-import { getSetupData, type SetupWedding, type SetupEvent } from '@/lib/data/setup';
+import { getSetupData, type SetupWedding, type SetupEvent, type SetupFamily } from '@/lib/data/setup';
 import { createWedding, addVenue, addEvent, updateEvent } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +57,46 @@ function VenueSelect({ w, selected }: { w: SetupWedding; selected: string | null
   );
 }
 
+function FamilyChecks({ families, selected }: { families: SetupFamily[]; selected: string[] }) {
+  if (families.length === 0) {
+    return (
+      <div className="sg-field" style={{ flexBasis: '100%' }}>
+        <label>Hosted by</label>
+        <p className="sg-muted" style={{ margin: 0, fontSize: 13 }}>
+          Add the families first on <a href="/host/groups">Families &amp; admins</a> — then you can set each event&rsquo;s
+          side here, which lights up the bride/groom accent on the guest&rsquo;s card.
+        </p>
+      </div>
+    );
+  }
+  const sel = new Set(selected);
+  return (
+    <div className="sg-field" style={{ flexBasis: '100%' }}>
+      <label>Hosted by (sets the bride / groom accent)</label>
+      <div className="sg-checks">
+        {families.map((f) => (
+          <label key={f.id} className="sg-check">
+            <input type="checkbox" name="hg" value={f.id} defaultChecked={sel.has(f.id)} /> {f.name}
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// The optional "know before you go" fields — shared by the add and edit forms.
+function EnrichFields({ e }: { e?: SetupEvent }) {
+  return (
+    <div className="sg-formrow">
+      <div className="sg-field"><label>Dress code</label><input className="sg-input" name="dress" defaultValue={e?.dressCode ?? ''} placeholder="e.g. Festive · Indian formal" /></div>
+      <div className="sg-field"><label>Muhurat (auspicious time)</label><input className="sg-input" type="datetime-local" name="muhurat" defaultValue={toLocalInput(e?.muhuratWall ?? null)} /></div>
+      <div className="sg-field"><label>Tithi</label><input className="sg-input" name="tithi" defaultValue={e?.tithiText ?? ''} placeholder="e.g. Shukla Dashami" /></div>
+      <div className="sg-field"><label>Choghadiya</label><input className="sg-input" name="choghadiya" defaultValue={e?.choghadiyaText ?? ''} placeholder="e.g. Amrit" /></div>
+      <div className="sg-field"><label>Live-stream URL</label><input className="sg-input" type="url" name="stream" defaultValue={e?.streamUrl ?? ''} placeholder="https://…" /></div>
+    </div>
+  );
+}
+
 function EventRow({ w, e }: { w: SetupWedding; e: SetupEvent }) {
   return (
     <tr>
@@ -79,6 +119,8 @@ function EventRow({ w, e }: { w: SetupWedding; e: SetupEvent }) {
               <div className="sg-field"><label>Timezone</label><TzSelect name="tz" selected={e.tz} /></div>
               <div className="sg-field"><label>Venue</label><VenueSelect w={w} selected={e.venueId} /></div>
             </div>
+            <FamilyChecks families={w.families} selected={e.hostGroupIds} />
+            <EnrichFields e={e} />
             <div className="sg-formrow" style={{ marginTop: 10 }}>
               <button type="submit" name="cancelled" value={e.cancelled ? 'true' : 'false'} className="sg-btn sg-btn--primary sg-btn--sm">Save changes</button>
               {e.cancelled
@@ -125,7 +167,13 @@ function WeddingSetup({ w }: { w: SetupWedding }) {
             <tbody>
               {w.venues.length === 0
                 ? <tr><td colSpan={3}><span className="sg-muted">No venues yet — add one below (events can reference it).</span></td></tr>
-                : w.venues.map((v) => <tr key={v.id}><td><strong>{v.name}</strong></td><td>{v.tz}</td><td>{v.address ?? '—'}</td></tr>)}
+                : w.venues.map((v) => (
+                  <tr key={v.id}>
+                    <td><strong>{v.name}</strong></td>
+                    <td>{v.tz}</td>
+                    <td>{v.address ?? '—'}{v.mapUrl ? <> · <a href={v.mapUrl} target="_blank" rel="noopener noreferrer">map ↗</a></> : null}</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         </div>
@@ -138,6 +186,7 @@ function WeddingSetup({ w }: { w: SetupWedding }) {
           <div className="sg-field"><label>Venue name *</label><input className="sg-input" name="name" required placeholder="e.g. The Grand Palace" /></div>
           <div className="sg-field"><label>Timezone</label><TzSelect name="tz" selected={w.defaultTimezone} /></div>
           <div className="sg-field"><label>Address</label><input className="sg-input" name="address" placeholder="optional" /></div>
+          <div className="sg-field"><label>Map link</label><input className="sg-input" type="url" name="mapUrl" placeholder="Google Maps link (optional)" /></div>
           <button type="submit" className="sg-btn sg-btn--primary">Add venue</button>
         </form>
       </section>
@@ -158,14 +207,23 @@ function WeddingSetup({ w }: { w: SetupWedding }) {
 
       <section className="sg-section">
         <h2>Add an event</h2>
-        <form action={addEvent} className="sg-formrow">
+        <form action={addEvent}>
           <input type="hidden" name="weddingId" value={w.weddingId} />
-          <div className="sg-field"><label>Event name *</label><input className="sg-input" name="name" required placeholder="e.g. Sangeet" /></div>
-          <div className="sg-field"><label>Type</label><TypeSelect selected="sangeet" /></div>
-          <div className="sg-field"><label>Date &amp; time *</label><input className="sg-input" type="datetime-local" name="wall" required /></div>
-          <div className="sg-field"><label>Timezone</label><TzSelect name="tz" selected={w.defaultTimezone} /></div>
-          <div className="sg-field"><label>Venue</label><VenueSelect w={w} selected={null} /></div>
-          <button type="submit" className="sg-btn sg-btn--primary">Add event</button>
+          <div className="sg-formrow">
+            <div className="sg-field"><label>Event name *</label><input className="sg-input" name="name" required placeholder="e.g. Sangeet" /></div>
+            <div className="sg-field"><label>Type</label><TypeSelect selected="sangeet" /></div>
+            <div className="sg-field"><label>Date &amp; time *</label><input className="sg-input" type="datetime-local" name="wall" required /></div>
+            <div className="sg-field"><label>Timezone</label><TzSelect name="tz" selected={w.defaultTimezone} /></div>
+            <div className="sg-field"><label>Venue</label><VenueSelect w={w} selected={null} /></div>
+          </div>
+          <FamilyChecks families={w.families} selected={[]} />
+          <details>
+            <summary className="sg-getdir">Add details — dress code, muhurat, live stream</summary>
+            <div style={{ marginTop: 10 }}><EnrichFields /></div>
+          </details>
+          <div style={{ marginTop: 12 }}>
+            <button type="submit" className="sg-btn sg-btn--primary">Add event</button>
+          </div>
         </form>
       </section>
     </div>

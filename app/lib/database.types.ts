@@ -138,12 +138,20 @@ export type Database = {
       // Owner-only: create an event (its function + a dated instance); returns the instance id. p_wall is a
       // wall-clock timestamp string, p_tz an IANA zone.
       owner_create_event: {
-        Args: { p_wedding: string; p_name: string; p_type: string | null; p_venue: string | null; p_wall: string; p_tz: string | null };
+        Args: {
+          p_wedding: string; p_name: string; p_type: string | null; p_venue: string | null; p_wall: string; p_tz: string | null;
+          p_dress?: string | null; p_muhurat_wall?: string | null; p_tithi?: string | null;
+          p_choghadiya?: string | null; p_stream?: string | null; p_host_groups?: string[] | null;
+        };
         Returns: string;
       };
       // Owner-only: edit/cancel an existing event.
       owner_update_event: {
-        Args: { p_wedding: string; p_instance: string; p_name: string | null; p_type: string | null; p_venue: string | null; p_wall: string | null; p_tz: string | null; p_cancelled: boolean };
+        Args: {
+          p_wedding: string; p_instance: string; p_name: string | null; p_type: string | null; p_venue: string | null; p_wall: string | null; p_tz: string | null; p_cancelled: boolean;
+          p_dress?: string | null; p_muhurat_wall?: string | null; p_tithi?: string | null;
+          p_choghadiya?: string | null; p_stream?: string | null; p_host_groups?: string[] | null;
+        };
         Returns: undefined;
       };
       // Owner-only finance writes. p_allocations is a JSON array of {group, percent} OR {group, amount}.
