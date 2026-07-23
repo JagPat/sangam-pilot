@@ -15,8 +15,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 psql_run() { psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -X -q "$@"; }
 
 echo "### auth stub + roles (Supabase provides these in a real project)"
+# Mirror the columns our functions actually read from auth.users: id (everywhere) + email (0009's
+# link_signed_in_account derives the VERIFIED email straight from the auth record). `add column if not
+# exists` keeps this idempotent if the table already exists from a prior local run.
 psql_run -c "create schema if not exists auth;
-             create table if not exists auth.users(id uuid primary key);
+             create table if not exists auth.users(id uuid primary key, email text);
+             alter table auth.users add column if not exists email text;
              create or replace function auth.uid() returns uuid language sql stable as \$\$
                select nullif(current_setting('request.jwt.claims', true)::json->>'sub','')::uuid \$\$;"
 psql_run -f "$ROOT/supabase/tests/00_roles.sql"
