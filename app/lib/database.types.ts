@@ -151,6 +151,33 @@ export type Database = {
         Args: { p_wedding: string; p_expense: string };
         Returns: undefined;
       };
+      // Owner-only family (host_group) + family-admin management (0012).
+      owner_create_host_group: {
+        Args: { p_wedding: string; p_kind: string; p_name: string };
+        Returns: string;
+      };
+      owner_rename_host_group: {
+        Args: { p_wedding: string; p_group: string; p_name: string };
+        Returns: undefined;
+      };
+      owner_delete_host_group: {
+        Args: { p_wedding: string; p_group: string };
+        Returns: undefined;
+      };
+      // Assign a family admin (or co-host) by email; mints an unlinked account if needed. Returns account id.
+      owner_assign_group_admin: {
+        Args: { p_wedding: string; p_host_group: string; p_email: string; p_role: string };
+        Returns: string;
+      };
+      owner_remove_operator_role: {
+        Args: { p_wedding: string; p_operator_role: string };
+        Returns: undefined;
+      };
+      // Owner-gated read: operators + their email (which account RLS otherwise hides).
+      owner_list_operators: {
+        Args: { p_wedding: string };
+        Returns: { id: string; account_id: string; role: string; host_group_id: string | null; email: string | null; linked: boolean }[];
+      };
     };
     Enums: EmptyMap;
     CompositeTypes: EmptyMap;

@@ -176,6 +176,7 @@ export default async function HostPage() {
           {dashboards.length > 0 ? (
             <>
               <Link href="/host/setup" style={{ fontSize: 13, padding: '6px 12px', border: '1px solid #ccc', borderRadius: 6, textDecoration: 'none', color: '#1d3b5c' }}>Venues &amp; events</Link>
+              <Link href="/host/groups" style={{ fontSize: 13, padding: '6px 12px', border: '1px solid #ccc', borderRadius: 6, textDecoration: 'none', color: '#1d3b5c' }}>Families &amp; admins</Link>
               <Link href="/host/finance" style={{ fontSize: 13, padding: '6px 12px', border: '1px solid #ccc', borderRadius: 6, textDecoration: 'none', color: '#1d3b5c' }}>Finance</Link>
               <Link href="/host/manage" style={{ fontSize: 13, padding: '6px 12px', background: '#1d3b5c', color: '#fff', borderRadius: 6, textDecoration: 'none' }}>Manage guests &amp; invitations →</Link>
             </>

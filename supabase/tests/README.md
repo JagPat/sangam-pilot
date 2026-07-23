@@ -58,6 +58,14 @@ Each script prints `OK…` lines and raises loudly on any `FAIL`. A clean exit =
   changing an amount without re-balancing fails at commit; delete cascades cleanly; three groups yield a
   **net position**, not a unique who-pays-whom transfer plan. Plus owner-only writes + direct-write denial.
 
+- **09_host_groups.sql** — migration **0012** family/host-group + family-admin RPCs: only the wedding owner
+  can create groups or assign admins; assigning by email mints an UNLINKED account (so 0009 adopts it on first
+  sign-in), activates membership, and is idempotent; an already-linked account is reused, never duplicated;
+  role is restricted to host_group_admin/co_host (never wedding_owner); cross-wedding owners are refused;
+  owner_list_operators is owner-gated and returns emails RLS otherwise hides; the wedding_owner role can't be
+  removed; an in-use family can't be deleted; anon can't execute the RPCs. (Account state is cross-checked as
+  superuser, since app.account rows are self-only under RLS.)
+
 Every suite runs under the single `scripts/run-sql-suites.sh` command above.
 
 ## Deferred to their fast-follow gate (NOT here)
