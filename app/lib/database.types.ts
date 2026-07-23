@@ -27,6 +27,10 @@ type HouseholdRow = { id: string; wedding_id: string; name: string };
 type HouseholdContactRow = { id: string; wedding_id: string; household_id: string; guest_id: string | null; channel: string; value: string; is_shared: boolean };
 type InvitationRow = { id: string; wedding_id: string; household_id: string; event_instance_id: string; status: string; rsvp_deadline_at: string | null; plus_one_allowance: number };
 type OperatorRoleRow = { id: string; wedding_id: string; account_id: string; role: string; host_group_id: string | null };
+type HostGroupRow = { id: string; wedding_id: string; kind: string; name: string };
+type FinanceExpenseRow = { id: string; wedding_id: string; description: string; category: string; amount: number; currency_code: string; paid_at: string; paid_by_host_group_id: string; created_by_account_id: string | null; note: string | null; created_at: string };
+type FinanceAllocationRow = { id: string; wedding_id: string; expense_id: string; responsible_host_group_id: string; allocation_amount: number };
+type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; currency_code: string; paid_amount: number; allocated_amount: number; net_position: number };
 
 // Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
 // the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
@@ -76,11 +80,15 @@ export type Database = {
       household_contact: { Row: HouseholdContactRow; Insert: Partial<HouseholdContactRow>; Update: Partial<HouseholdContactRow>; Relationships: [] };
       invitation: { Row: InvitationRow; Insert: Partial<InvitationRow>; Update: Partial<InvitationRow>; Relationships: [] };
       operator_role: { Row: OperatorRoleRow; Insert: Partial<OperatorRoleRow>; Update: Partial<OperatorRoleRow>; Relationships: [] };
+      host_group: { Row: HostGroupRow; Insert: Partial<HostGroupRow>; Update: Partial<HostGroupRow>; Relationships: [] };
+      finance_expense: { Row: FinanceExpenseRow; Insert: Partial<FinanceExpenseRow>; Update: Partial<FinanceExpenseRow>; Relationships: [] };
+      finance_expense_allocation: { Row: FinanceAllocationRow; Insert: Partial<FinanceAllocationRow>; Update: Partial<FinanceAllocationRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
       caterer_report: { Row: CatererReportRow; Relationships: [] };
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
+      finance_net_position: { Row: FinanceNetPositionRow; Relationships: [] };
     };
     Functions: {
       // Recipient-bound: the verified session contact must match the invited contact.
@@ -128,6 +136,19 @@ export type Database = {
       // Owner-only: edit/cancel an existing event.
       owner_update_event: {
         Args: { p_wedding: string; p_instance: string; p_name: string | null; p_type: string | null; p_venue: string | null; p_wall: string | null; p_tz: string | null; p_cancelled: boolean };
+        Returns: undefined;
+      };
+      // Owner-only finance writes. p_allocations is a JSON array of {group, percent} OR {group, amount}.
+      owner_add_expense: {
+        Args: { p_wedding: string; p_description: string; p_category: string | null; p_amount: number; p_currency: string; p_paid_at: string; p_paid_by_host_group: string; p_note: string | null; p_allocations: Json };
+        Returns: string;
+      };
+      owner_update_expense: {
+        Args: { p_wedding: string; p_expense: string; p_description: string; p_category: string | null; p_amount: number; p_currency: string; p_paid_at: string; p_paid_by_host_group: string; p_note: string | null; p_allocations: Json };
+        Returns: undefined;
+      };
+      owner_delete_expense: {
+        Args: { p_wedding: string; p_expense: string };
         Returns: undefined;
       };
     };
