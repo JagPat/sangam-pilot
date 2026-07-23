@@ -2,6 +2,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getGuestSchedule, type ScheduleItem } from '@/lib/data/schedule';
 import ScheduleView from './ScheduleView';
+import { GuestTopbar } from '../GuestTopbar';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the session + the guest's own rows.
 
@@ -23,12 +24,7 @@ export default async function SchedulePage() {
   } catch {
     return (
       <Shell>
-        <div className="sg-topbar">
-          <span className="sg-brand">Sangam</span>
-          <form action="/auth/signout" method="post">
-            <button type="submit" className="sg-signout">Sign out</button>
-          </form>
-        </div>
+        <GuestTopbar current="schedule" />
         <div className="sg-empty">
           <div className="sg-empty__title">We couldn’t load your schedule</div>
           <p style={{ margin: 0 }}>Please refresh in a moment.</p>
@@ -39,12 +35,7 @@ export default async function SchedulePage() {
 
   return (
     <Shell>
-      <div className="sg-topbar">
-        <span className="sg-brand">Sangam</span>
-        <form action="/auth/signout" method="post">
-          <button type="submit" className="sg-signout">Sign out</button>
-        </form>
-      </div>
+      <GuestTopbar current="schedule" />
 
       <header className="sg-hero">
         <div className="sg-eyebrow">Your invitation</div>

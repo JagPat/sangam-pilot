@@ -1,7 +1,7 @@
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
-import { getManageData, type ManageWedding, type ManageEvent, type ManageGuest } from '@/lib/data/manage';
-import { addGuest, updateGuest, inviteGuest, uninviteGuest, removeGuest } from './actions';
+import { getManageData, DIETARY_CATEGORIES, JAIN_STRICTNESS, type ManageWedding, type ManageEvent, type ManageGuest } from '@/lib/data/manage';
+import { addGuest, updateGuest, saveDietary, inviteGuest, uninviteGuest, removeGuest } from './actions';
 import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
@@ -89,8 +89,39 @@ function GuestRow({ w, g }: { w: ManageWedding; g: ManageGuest }) {
             <input type="hidden" name="householdId" value={g.householdId} />
             <div className="sg-field"><label>Name</label><input className="sg-input" name="fullName" defaultValue={g.guestName ?? ''} /></div>
             <div className="sg-field"><label>Sign-in email</label><input className="sg-input" name="email" type="email" defaultValue={g.email ?? ''} placeholder="name@example.com" /></div>
+            <label className="sg-check">
+              <input type="checkbox" name="showInDirectory" defaultChecked={g.showInDirectory} />
+              <span>List in the guest directory</span>
+            </label>
             <button type="submit" className="sg-btn sg-btn--primary sg-btn--sm">Save changes</button>
           </form>
+
+          <form action={saveDietary} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 220 }}>
+            <input type="hidden" name="weddingId" value={w.weddingId} />
+            <input type="hidden" name="guestId" value={g.guestId} />
+            <div className="sg-muted" style={{ fontSize: 12, fontWeight: 600, letterSpacing: '.02em', textTransform: 'uppercase' }}>Dietary &amp; catering</div>
+            <div className="sg-field">
+              <label>Category</label>
+              <select className="sg-select" name="category" defaultValue={g.dietary.category ?? ''}>
+                <option value="">— none recorded —</option>
+                {DIETARY_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div className="sg-field">
+              <label>Jain strictness <span className="sg-muted">(if Jain)</span></label>
+              <select className="sg-select" name="jainStrictness" defaultValue={g.dietary.jainStrictness ?? ''}>
+                <option value="">— standard / n/a —</option>
+                {JAIN_STRICTNESS.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
+              </select>
+            </div>
+            <label className="sg-check">
+              <input type="checkbox" name="noOnionGarlic" defaultChecked={g.dietary.noOnionGarlic} />
+              <span>No onion &amp; garlic</span>
+            </label>
+            <div className="sg-field"><label>Allergies &amp; notes</label><input className="sg-input" name="allergies" defaultValue={g.dietary.allergies ?? ''} placeholder="e.g. peanuts, dairy" /></div>
+            <button type="submit" className="sg-btn sg-btn--primary sg-btn--sm">Save dietary</button>
+          </form>
+
           <form action={removeGuest} style={{ marginTop: 10 }}>
             <input type="hidden" name="weddingId" value={w.weddingId} />
             <input type="hidden" name="guestId" value={g.guestId} />
@@ -134,7 +165,7 @@ function WeddingManage({ w }: { w: ManageWedding }) {
       <section className="sg-section">
         <h2>Guests &amp; invitations ({w.guests.length})</h2>
         {w.events.length === 0 ? (
-          <div className="sg-banner is-err">This wedding has no events yet. Events are still set up in SQL (manual §5) for now — that screen is the next step after this one.</div>
+          <div className="sg-banner is-err">This wedding has no events yet. Add venues and events under <strong>Venues &amp; events</strong>, then come back here to invite guests.</div>
         ) : null}
         <div className="sg-tablewrap">
           <table className="sg-table">

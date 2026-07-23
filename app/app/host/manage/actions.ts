@@ -78,14 +78,18 @@ export async function updateGuest(fd: FormData): Promise<void> {
   const householdId = s(fd, 'householdId');
   const fullName = s(fd, 'fullName');
   const email = s(fd, 'email').toLowerCase();
+  const showInDirectory = !!fd.get('showInDirectory');
   if (!weddingId || !guestId) fail('save');
 
   let ok = true;
   try {
     const app = (await serverClientRW()).schema('app');
 
-    if (fullName) {
-      const { error } = await app.from('guest').update({ full_name: fullName }).eq('wedding_id', weddingId).eq('id', guestId);
+    // Always persist the directory-listing toggle; update the name only when one was supplied.
+    const patch: { show_in_directory: boolean; full_name?: string } = { show_in_directory: showInDirectory };
+    if (fullName) patch.full_name = fullName;
+    {
+      const { error } = await app.from('guest').update(patch).eq('wedding_id', weddingId).eq('id', guestId);
       if (error) throw error;
     }
 
@@ -111,6 +115,49 @@ export async function updateGuest(fd: FormData): Promise<void> {
     }
   } catch (e) {
     console.error('[sangam manage] updateGuest', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+// ---- Record a guest's dietary needs (feeds the per-event caterer report). Runs under the OWNER's own
+// session; the diet_self_write RLS policy (owner OR the guest/proxy) is the real guard. Leaving the
+// category blank clears the profile, so the caterer report falls back to 'unknown' for that guest. ----
+export async function saveDietary(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  const category = s(fd, 'category');
+  const jainRaw = s(fd, 'jainStrictness');
+  const noOnionGarlic = !!fd.get('noOnionGarlic');
+  const allergies = s(fd, 'allergies');
+  if (!weddingId || !guestId) fail('save');
+
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+
+    if (!category) {
+      const { error } = await app.from('guest_dietary_profile').delete().eq('wedding_id', weddingId).eq('guest_id', guestId);
+      if (error) throw error;
+    } else {
+      // jain_strictness is only allowed when category = 'jain' (DB CHECK jain_strictness_only_for_jain).
+      const jain = category === 'jain' && jainRaw ? jainRaw : null;
+      const { error } = await app.from('guest_dietary_profile').upsert(
+        {
+          wedding_id: weddingId,
+          guest_id: guestId,
+          category,
+          jain_strictness: jain,
+          no_onion_garlic: noOnionGarlic,
+          allergies: allergies || null,
+        },
+        { onConflict: 'wedding_id,guest_id' },
+      );
+      if (error) throw error;
+    }
+  } catch (e) {
+    console.error('[sangam manage] saveDietary', e);
     ok = false;
   }
   if (!ok) fail('save');
@@ -222,32 +269,22 @@ export async function removeGuest(fd: FormData): Promise<void> {
   const guestId = s(fd, 'guestId');
   if (!weddingId || !guestId) fail('remove');
 
-  let ok = true;
-  let blocked = false;
+  let code: string | null = null;
   try {
     const app = (await serverClientRW()).schema('app');
-
-    const { data: ig, error: eIg } = await app
-      .from('invitation_guest')
-      .select('id')
-      .eq('wedding_id', weddingId)
-      .eq('guest_id', guestId)
-      .limit(1)
-      .maybeSingle();
-    if (eIg) throw eIg;
-
-    if (ig) {
-      blocked = true; // still invited somewhere → remove from those events first
-    } else {
-      await app.from('household_contact').delete().eq('wedding_id', weddingId).eq('guest_id', guestId);
-      const { error: eD } = await app.from('guest').delete().eq('wedding_id', weddingId).eq('id', guestId);
-      if (eD) throw eD;
+    // One atomic SECURITY DEFINER call: it authorizes the owner, refuses a still-invited guest (SQLSTATE
+    // SA001 -> "remove from their events first"), then removes the guest AND all of its owned detail rows
+    // (contact, dietary, directory consent, …) in a single transaction. The previous app-side two-step
+    // delete could wipe a guest's contact and then fail the guest delete on a child FK — this cannot.
+    const { error } = await app.rpc('owner_delete_guest', { p_wedding: weddingId, p_guest: guestId });
+    if (error) {
+      code = error.code === 'SA001' ? 'hasinvites' : 'remove';
+      if (error.code !== 'SA001') console.error('[sangam manage] removeGuest', error);
     }
   } catch (e) {
     console.error('[sangam manage] removeGuest', e);
-    ok = false;
+    code = 'remove';
   }
-  if (blocked) fail('hasinvites');
-  if (!ok) fail('remove');
+  if (code) fail(code);
   done();
 }

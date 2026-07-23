@@ -25,6 +25,16 @@ export type EventRollup = {
 export type GuestResponse = { eventInstanceId: string; functionName: string | null; status: string };
 export type GuestRow = { guestId: string; guestName: string | null; responses: GuestResponse[] };
 
+// Safety-critical dietary detail the per-category head count can't carry: allergies, no onion/garlic,
+// Jain strictness. Listed per guest (across the wedding, not per event) so nothing slips past the caterer.
+export type SpecialDiet = {
+  guestName: string | null;
+  category: string;
+  jainStrictness: string | null;
+  noOnionGarlic: boolean;
+  allergies: string | null;
+};
+
 export type WeddingDashboard = {
   weddingId: string;
   title: string;
@@ -36,6 +46,7 @@ export type WeddingDashboard = {
   totalResponded: number;
   events: EventRollup[];
   guests: GuestRow[];
+  specialDiets: SpecialDiet[];
 };
 
 export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDashboard[]> {
@@ -51,7 +62,7 @@ export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDa
     .in('wedding_id', weddingIds);
   if (eCounts) throw eCounts;
 
-  const [weds, insts, funcs, venues, guests, igs, caterer, att] = await Promise.all([
+  const [weds, insts, funcs, venues, guests, igs, caterer, att, diets] = await Promise.all([
     app.from('wedding').select('id, title, couple_names, start_date, end_date').in('id', weddingIds),
     app.from('event_instance').select('id, wedding_id, event_function_id, venue_id, iana_timezone, arrival').in('wedding_id', weddingIds),
     app.from('event_function').select('id, name, type').in('wedding_id', weddingIds),
@@ -60,8 +71,9 @@ export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDa
     app.from('invitation_guest').select('id, wedding_id, event_instance_id, guest_id').in('wedding_id', weddingIds),
     app.from('caterer_report').select('wedding_id, event_instance_id, category, head_count').in('wedding_id', weddingIds),
     app.from('attendance_expanded').select('event_instance_id, guest_id, status, wedding_id').in('wedding_id', weddingIds),
+    app.from('guest_dietary_profile').select('wedding_id, guest_id, category, jain_strictness, no_onion_garlic, allergies').in('wedding_id', weddingIds),
   ]);
-  for (const r of [weds, insts, funcs, venues, guests, igs, caterer, att]) if (r.error) throw r.error;
+  for (const r of [weds, insts, funcs, venues, guests, igs, caterer, att, diets]) if (r.error) throw r.error;
 
   const funcById = new Map((funcs.data ?? []).map((r) => [r.id, r]));
   const venueById = new Map((venues.data ?? []).map((r) => [r.id, r]));
@@ -78,6 +90,8 @@ export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDa
     arr.push({ category: c.category, headCount: Number(c.head_count) });
     dietByInst.set(c.event_instance_id, arr);
   }
+
+  const nameByGuest = new Map((guests.data ?? []).map((g) => [g.id, g.full_name ?? null]));
 
   return (weds.data ?? []).map((w) => {
     const wInsts = (insts.data ?? []).filter((i) => i.wedding_id === w.id);
@@ -127,6 +141,17 @@ export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDa
 
     const totalResponded = (att.data ?? []).filter((a) => wInsts.some((i) => i.id === a.event_instance_id)).length;
 
+    const specialDiets: SpecialDiet[] = (diets.data ?? [])
+      .filter((d) => d.wedding_id === w.id && (!!d.allergies?.trim() || d.no_onion_garlic || !!d.jain_strictness))
+      .map((d) => ({
+        guestName: nameByGuest.get(d.guest_id) ?? null,
+        category: d.category,
+        jainStrictness: d.jain_strictness ?? null,
+        noOnionGarlic: !!d.no_onion_garlic,
+        allergies: d.allergies ?? null,
+      }))
+      .sort((a, b) => (a.guestName ?? '').localeCompare(b.guestName ?? ''));
+
     return {
       weddingId: w.id,
       title: w.title,
@@ -138,6 +163,7 @@ export async function getHostDashboard(db: AppSupabaseClient): Promise<WeddingDa
       totalResponded,
       events,
       guests: guestRows,
+      specialDiets,
     };
   });
 }

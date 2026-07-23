@@ -186,6 +186,21 @@ body {
 .sg-perf__role { font-weight: 500; color: var(--ink-2); }
 .sg-perf__blurb { font-size: 12.5px; color: var(--ink-2); }
 
+/* guest-app nav (schedule + directory) */
+.sg-guestnav { display: flex; gap: 6px; align-items: center; }
+.sg-guestnav a { font-family: var(--font-sans); font-size: 13.5px; font-weight: 500; color: var(--ink-2); text-decoration: none; padding: 7px 14px; border-radius: 999px; border: 1px solid transparent; transition: background .15s, color .15s; }
+.sg-guestnav a:hover { color: var(--maroon); background: var(--gold-soft); }
+.sg-guestnav a.is-current { color: var(--maroon); background: var(--paper); border-color: var(--line); box-shadow: var(--shadow); }
+
+/* guest directory ("Who's coming") */
+.sg-dirgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 20px; }
+.sg-dircard { display: flex; gap: 12px; align-items: center; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; box-shadow: var(--shadow); }
+.sg-dir__avatar { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-serif); font-weight: 600; font-size: 16px; background: var(--gold-soft); color: var(--gold-deep); border: 1px solid var(--gold); }
+.sg-dir__avatar.is-bride { background: var(--bride-soft); color: var(--bride); border-color: var(--bride); }
+.sg-dir__avatar.is-groom { background: var(--groom-soft); color: var(--groom); border-color: var(--groom); }
+.sg-dir__name { font-family: var(--font-serif); font-weight: 600; font-size: 16px; color: var(--ink); }
+.sg-dir__sub { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+
 /* ============================ organizer (host) surface ============================ */
 .sg-host { min-height: 100vh; background: radial-gradient(120% 50% at 50% -10%, var(--gold-soft) 0%, rgba(245,235,216,0) 55%), var(--ivory); }
 .sg-host::before { content: ''; display: block; height: 4px; background: linear-gradient(90deg, var(--gold), var(--gold-bright) 50%, var(--gold)); }

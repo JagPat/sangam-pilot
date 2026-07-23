@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
-import { getHostDashboard, type WeddingDashboard, type EventRollup } from '@/lib/data/host';
+import { getHostDashboard, type WeddingDashboard, type EventRollup, type SpecialDiet } from '@/lib/data/host';
 import { HostNav } from './HostNav';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the owner's session + owner-scoped rows.
@@ -81,6 +81,41 @@ function DietaryTable({ events }: { events: EventRollup[] }) {
   );
 }
 
+const DIET_LABEL: Record<string, string> = {
+  veg: 'Vegetarian', jain: 'Jain', swaminarayan: 'Swaminarayan', vaishnav: 'Vaishnav', vegan: 'Vegan', nonveg: 'Non-veg',
+};
+const JAIN_LABEL: Record<string, string> = {
+  standard: 'Jain · standard', no_root_veg: 'Jain · no root veg', no_after_sunset: 'Jain · nothing after sunset', no_honey: 'Jain · no honey',
+};
+
+function SpecialDiets({ rows }: { rows: SpecialDiet[] }) {
+  if (rows.length === 0) {
+    return <p className="sg-muted">No allergies or special restrictions recorded yet. Add them per guest under <strong>Guests</strong> → Edit → Dietary &amp; catering.</p>;
+  }
+  return (
+    <div className="sg-tablewrap">
+      <table className="sg-table">
+        <thead><tr><th>Guest</th><th>Diet</th><th>Restrictions</th><th>Allergies</th></tr></thead>
+        <tbody>
+          {rows.map((d, i) => {
+            const flags: string[] = [];
+            if (d.jainStrictness) flags.push(JAIN_LABEL[d.jainStrictness] ?? 'Jain');
+            if (d.noOnionGarlic) flags.push('No onion/garlic');
+            return (
+              <tr key={i}>
+                <td><strong>{d.guestName ?? '—'}</strong></td>
+                <td>{DIET_LABEL[d.category] ?? d.category}</td>
+                <td>{flags.length ? flags.join(', ') : <span className="sg-muted">—</span>}</td>
+                <td>{d.allergies ? <span style={{ color: 'var(--maroon)', fontWeight: 600 }}>{d.allergies}</span> : <span className="sg-muted">—</span>}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function Section({ title, children, note }: { title: string; children: React.ReactNode; note?: string }) {
   return (
     <section className="sg-section">
@@ -120,6 +155,10 @@ function WeddingBlock({ w }: { w: WeddingDashboard }) {
 
       <Section title="Catering / dietary head count">
         <DietaryTable events={w.events} />
+      </Section>
+
+      <Section title="Allergies &amp; special requirements" note="Safety-critical detail for your caterer, listed per guest across the wedding.">
+        <SpecialDiets rows={w.specialDiets} />
       </Section>
 
       <Section title={`Guests (${w.guests.length})`} note="Each guest and how they've replied to every event they're invited to.">

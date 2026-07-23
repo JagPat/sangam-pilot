@@ -40,11 +40,13 @@ type FinanceAllocationRow = { id: string; wedding_id: string; expense_id: string
 type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; currency_code: string; paid_amount: number; allocated_amount: number; net_position: number };
 type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
 type EngagementRow = { id: string; wedding_id: string; vendor_id: string; event_instance_id: string | null; state: string; role_title: string | null; blurb: string | null; quote_amount: number | null; quote_currency: string | null; notes: string | null; created_at: string; updated_at: string };
+type GuestDietaryProfileRow = { id: string; wedding_id: string; guest_id: string; category: string; jain_strictness: string | null; no_onion_garlic: boolean; fasting_days: string[]; allergies: string | null; created_at: string };
 
 // Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
 // the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
 type InstanceRsvpCountsRow = { wedding_id: string; event_instance_id: string; accepted: number; declined: number; tentative: number };
 type CatererReportRow = { wedding_id: string; event_instance_id: string; category: string; head_count: number };
+type DirectoryEntryRow = { wedding_id: string; guest_id: string; full_name: string | null; relationship_label: string | null; kinship_term: string | null; side_default: string | null; name_pronunciation_clip_url: string | null };
 type AttendanceExpandedRow = { id: string; wedding_id: string; event_instance_id: string; guest_id: string; status: string; responded_by_account_id: string | null; responded_channel: string; responded_as: string; responded_at: string; row_version: number };
 
 export type Database = {
@@ -95,10 +97,12 @@ export type Database = {
       finance_expense_allocation: { Row: FinanceAllocationRow; Insert: Partial<FinanceAllocationRow>; Update: Partial<FinanceAllocationRow>; Relationships: [] };
       vendor: { Row: VendorRow; Insert: Partial<VendorRow>; Update: Partial<VendorRow>; Relationships: [] };
       engagement: { Row: EngagementRow; Insert: Partial<EngagementRow>; Update: Partial<EngagementRow>; Relationships: [] };
+      guest_dietary_profile: { Row: GuestDietaryProfileRow; Insert: Partial<GuestDietaryProfileRow>; Update: Partial<GuestDietaryProfileRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
       caterer_report: { Row: CatererReportRow; Relationships: [] };
+      directory_entry: { Row: DirectoryEntryRow; Relationships: [] };
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
       finance_net_position: { Row: FinanceNetPositionRow; Relationships: [] };
     };
@@ -148,6 +152,12 @@ export type Database = {
           p_choghadiya?: string | null; p_stream?: string | null; p_host_groups?: string[] | null;
         };
         Returns: string;
+      };
+      // Owner-only: atomically delete a guest and all of its owned detail rows (contact, dietary, directory
+      // consent, …). Raises SQLSTATE SA001 if the guest is still invited to any event.
+      owner_delete_guest: {
+        Args: { p_wedding: string; p_guest: string };
+        Returns: undefined;
       };
       // Owner-only: edit/cancel an existing event.
       owner_update_event: {

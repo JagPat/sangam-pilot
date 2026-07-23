@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import ScheduleView from '../../schedule/ScheduleView';
 import RsvpControl from '../../schedule/RsvpControl';
+import { GuestTopbar } from '../../GuestTopbar';
 import type { ScheduleItem } from '@/lib/data/schedule';
 
 // DEV-ONLY UI preview with fixture data (no auth, no DB). Gated by PREVIEW_FIXTURES=1 so it 404s in prod.
@@ -88,12 +89,7 @@ export default function PreviewSchedule() {
   return (
     <main className="sg-guest">
       <div className="sg-shell">
-        <div className="sg-topbar">
-          <span className="sg-brand">Sangam</span>
-          <form action="#" method="post">
-            <button type="submit" className="sg-signout">Sign out</button>
-          </form>
-        </div>
+        <GuestTopbar current="schedule" />
 
         <header className="sg-hero">
           <div className="sg-eyebrow">Your invitation</div>

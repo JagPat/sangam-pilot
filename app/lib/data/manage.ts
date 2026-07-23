@@ -14,6 +14,31 @@ export type ManageEvent = {
   tz: string;
 };
 
+// Dietary vocabulary (mirrors the app.dietary_category / app.jain_strictness enums in 0005_food.sql).
+// Kept here so the organizer form and the loader share one source of truth.
+export const DIETARY_CATEGORIES = [
+  { value: 'veg', label: 'Vegetarian' },
+  { value: 'jain', label: 'Jain' },
+  { value: 'swaminarayan', label: 'Swaminarayan' },
+  { value: 'vaishnav', label: 'Vaishnav' },
+  { value: 'vegan', label: 'Vegan' },
+  { value: 'nonveg', label: 'Non-vegetarian' },
+] as const;
+
+export const JAIN_STRICTNESS = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'no_root_veg', label: 'No root vegetables' },
+  { value: 'no_after_sunset', label: 'Nothing after sunset' },
+  { value: 'no_honey', label: 'No honey' },
+] as const;
+
+export type GuestDietary = {
+  category: string | null; // null = no profile recorded yet
+  jainStrictness: string | null;
+  noOnionGarlic: boolean;
+  allergies: string | null;
+};
+
 export type ManageGuest = {
   guestId: string;
   guestName: string | null;
@@ -23,6 +48,8 @@ export type ManageGuest = {
   bound: boolean; // has signed in and been linked to their account
   invited: Record<string, boolean>; // eventInstanceId -> invited?
   locked: Record<string, boolean>; // eventInstanceId -> already responded (cannot be un-invited)
+  dietary: GuestDietary; // caterer-facing needs; category null until the host (or guest) records it
+  showInDirectory: boolean; // listed in the consent-respecting guest directory ("Who's coming")
 };
 
 export type ManageHousehold = { id: string; name: string };
@@ -40,22 +67,24 @@ export async function getManageData(db: AppSupabaseClient): Promise<ManageWeddin
   const weddingIds = await ownedWeddingIds(db);
   if (weddingIds.length === 0) return [];
 
-  const [weds, households, guests, contacts, insts, funcs, igs, att] = await Promise.all([
+  const [weds, households, guests, contacts, insts, funcs, igs, att, diets] = await Promise.all([
     app.from('wedding').select('id, title').in('id', weddingIds),
     app.from('household').select('id, wedding_id, name').in('wedding_id', weddingIds),
-    app.from('guest').select('id, wedding_id, household_id, full_name, self_account_id').in('wedding_id', weddingIds),
+    app.from('guest').select('id, wedding_id, household_id, full_name, self_account_id, show_in_directory').in('wedding_id', weddingIds),
     app.from('household_contact').select('wedding_id, guest_id, channel, value').in('wedding_id', weddingIds).eq('channel', 'email'),
     app.from('event_instance').select('id, wedding_id, event_function_id, iana_timezone, arrival').in('wedding_id', weddingIds),
     app.from('event_function').select('id, wedding_id, name, type').in('wedding_id', weddingIds),
     app.from('invitation_guest').select('id, wedding_id, event_instance_id, guest_id').in('wedding_id', weddingIds),
     app.from('event_attendance').select('invitation_guest_id, wedding_id').in('wedding_id', weddingIds),
+    app.from('guest_dietary_profile').select('wedding_id, guest_id, category, jain_strictness, no_onion_garlic, allergies').in('wedding_id', weddingIds),
   ]);
-  for (const r of [weds, households, guests, contacts, insts, funcs, igs, att]) if (r.error) throw r.error;
+  for (const r of [weds, households, guests, contacts, insts, funcs, igs, att, diets]) if (r.error) throw r.error;
 
   const funcById = new Map((funcs.data ?? []).map((f) => [f.id, f]));
   const emailByGuest = new Map<string, string>();
   for (const c of contacts.data ?? []) if (c.guest_id && !emailByGuest.has(c.guest_id)) emailByGuest.set(c.guest_id, c.value);
   const respondedIg = new Set((att.data ?? []).map((a) => a.invitation_guest_id));
+  const dietByGuest = new Map((diets.data ?? []).map((d) => [d.guest_id, d]));
 
   return (weds.data ?? []).map((w) => {
     const wHouse: ManageHousehold[] = (households.data ?? [])
@@ -90,6 +119,7 @@ export async function getManageData(db: AppSupabaseClient): Promise<ManageWeddin
           locked[ev.eventInstanceId] = ig ? respondedIg.has(ig.id) : false;
         }
         const hh = wHouse.find((h) => h.id === g.household_id);
+        const d = dietByGuest.get(g.id);
         return {
           guestId: g.id,
           guestName: g.full_name ?? null,
@@ -99,6 +129,13 @@ export async function getManageData(db: AppSupabaseClient): Promise<ManageWeddin
           bound: !!g.self_account_id,
           invited,
           locked,
+          showInDirectory: g.show_in_directory ?? true,
+          dietary: {
+            category: d?.category ?? null,
+            jainStrictness: d?.jain_strictness ?? null,
+            noOnionGarlic: d?.no_onion_garlic ?? false,
+            allergies: d?.allergies ?? null,
+          },
         };
       })
       .sort((a, b) => (a.guestName ?? '').localeCompare(b.guestName ?? ''));
