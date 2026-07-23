@@ -16,9 +16,16 @@ export type ZonedTime = {
 
 // Read shapes for the Slice-1 schedule/RSVP surface (the columns the app selects). RLS governs which rows
 // come back; these types only describe columns, not visibility.
-type VenueRow = { id: string; wedding_id: string; name: string; iana_timezone: string; address: string | null; map_url: string | null };
+type VenueRow = { id: string; wedding_id: string; name: string; iana_timezone: string; address: string | null; lat: number | null; lng: number | null; map_url: string | null };
 type EventFunctionRow = { id: string; wedding_id: string; name: string; type: string };
-type EventInstanceRow = { id: string; wedding_id: string; event_function_id: string; venue_id: string | null; iana_timezone: string; arrival: ZonedTime; scheduled_status: string };
+type EventInstanceRow = {
+  id: string; wedding_id: string; event_function_id: string; venue_id: string | null; iana_timezone: string;
+  arrival: ZonedTime; ceremony_start: ZonedTime | null;
+  muhurat_kind: string | null; muhurat_start: ZonedTime | null; muhurat_end: ZonedTime | null;
+  choghadiya_text: string | null; tithi_text: string | null;
+  dress_code: string | null; alcohol_available: boolean; stream_url: string | null; scheduled_status: string;
+};
+type EventHostGroupRow = { wedding_id: string; event_instance_id: string; host_group_id: string };
 type InvitationGuestRow = { id: string; wedding_id: string; invitation_id: string; event_instance_id: string; guest_id: string };
 type EventAttendanceRow = { id: string; wedding_id: string; invitation_guest_id: string; status: string; responded_channel: string; responded_as: string; row_version: number };
 type GuestRow = { id: string; wedding_id: string; household_id: string; full_name: string; self_account_id: string | null; show_in_directory: boolean };
@@ -72,6 +79,7 @@ export type Database = {
       venue: { Row: VenueRow; Insert: Partial<VenueRow>; Update: Partial<VenueRow>; Relationships: [] };
       event_function: { Row: EventFunctionRow; Insert: Partial<EventFunctionRow>; Update: Partial<EventFunctionRow>; Relationships: [] };
       event_instance: { Row: EventInstanceRow; Insert: Partial<EventInstanceRow>; Update: Partial<EventInstanceRow>; Relationships: [] };
+      event_host_group: { Row: EventHostGroupRow; Insert: Partial<EventHostGroupRow>; Update: Partial<EventHostGroupRow>; Relationships: [] };
       invitation_guest: { Row: InvitationGuestRow; Insert: Partial<InvitationGuestRow>; Update: Partial<InvitationGuestRow>; Relationships: [] };
       event_attendance: { Row: EventAttendanceRow; Insert: Partial<EventAttendanceRow>; Update: Partial<EventAttendanceRow>; Relationships: [] };
       guest: { Row: GuestRow; Insert: Partial<GuestRow>; Update: Partial<GuestRow>; Relationships: [] };

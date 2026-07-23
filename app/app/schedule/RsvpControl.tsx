@@ -16,21 +16,18 @@ const STATUS_LABEL: Record<AttendanceStatus, string> = {
   tentative: 'Maybe',
 };
 
+const PILL: Record<AttendanceStatus, string> = {
+  accepted: 'is-attending',
+  declined: 'is-declined',
+  tentative: 'is-maybe',
+};
+
 function friendly(msg: string): string {
   if (/rsvp conflict/i.test(msg)) return 'Someone updated this RSVP a moment ago — please review and try again.';
   if (/not authorized/i.test(msg)) return 'You’re not able to RSVP for this guest.';
   if (/closed|deadline|draft/i.test(msg)) return 'RSVPs for this event are closed.';
   return 'Something went wrong. Please try again.';
 }
-
-const btn = {
-  padding: '6px 12px',
-  fontSize: 14,
-  cursor: 'pointer',
-  borderRadius: 6,
-  border: '1px solid #ccc',
-  background: '#fff',
-} as const;
 
 // Two-step RSVP: choose -> ECHO ("Mark X as Y? Confirm") -> confirm. The propose step writes nothing to
 // attendance; only Confirm commits (via confirm_rsvp_change). initialEcho is a preview-only affordance so
@@ -78,42 +75,38 @@ export default function RsvpControl({
   }
 
   return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>
+    <div className="sg-rsvp">
+      <div className="sg-rsvp__label">
+        <span>Your RSVP:</span>
         {current ? (
-          <>
-            Your RSVP: <strong>{STATUS_LABEL[current]}</strong>
-          </>
+          <span className={`sg-pill ${PILL[current]}`}>{STATUS_LABEL[current]}</span>
         ) : (
-          <>Not responded yet</>
+          <span className="sg-pill is-none">Not responded</span>
         )}
       </div>
 
       {echo ? (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14 }}>
-            Mark <strong>{label}</strong> as <strong>{STATUS_LABEL[echo.status]}</strong>? Nothing is saved
-            until you confirm.
-          </span>
-          <button
-            type="button"
-            style={{ ...btn, background: '#111', color: '#fff', borderColor: '#111' }}
-            onClick={confirm}
-            disabled={pending}
-          >
-            {pending ? 'Confirming…' : 'Confirm'}
-          </button>
-          <button type="button" style={btn} onClick={() => setEcho(null)} disabled={pending}>
-            Cancel
-          </button>
+        <div className="sg-confirm">
+          <p>
+            Mark <strong>{label}</strong> as <strong>{STATUS_LABEL[echo.status]}</strong>? Nothing is saved until
+            you confirm.
+          </p>
+          <div className="sg-confirm__row">
+            <button type="button" className="sg-btn sg-btn--primary" onClick={confirm} disabled={pending}>
+              {pending ? 'Confirming…' : 'Confirm'}
+            </button>
+            <button type="button" className="sg-btn" onClick={() => setEcho(null)} disabled={pending}>
+              Cancel
+            </button>
+          </div>
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div className="sg-choices">
           {CHOICES.map((c) => (
             <button
               key={c.key}
               type="button"
-              style={{ ...btn, ...(current === c.key ? { borderColor: '#111', fontWeight: 600 } : {}) }}
+              className={`sg-btn${current === c.key ? ' is-selected' : ''}`}
               onClick={() => propose(c.key)}
               disabled={pending}
             >
@@ -123,7 +116,7 @@ export default function RsvpControl({
         </div>
       )}
 
-      {error && <div style={{ color: '#b00020', fontSize: 13, marginTop: 6 }}>{error}</div>}
+      {error && <div className="sg-error">{error}</div>}
     </div>
   );
 }

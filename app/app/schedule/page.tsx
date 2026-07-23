@@ -5,7 +5,13 @@ import ScheduleView from './ScheduleView';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the session + the guest's own rows.
 
-const wrap = { padding: 24, maxWidth: 640, margin: '0 auto', fontFamily: 'system-ui, sans-serif', lineHeight: 1.5 } as const;
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="sg-guest">
+      <div className="sg-shell">{children}</div>
+    </main>
+  );
+}
 
 export default async function SchedulePage() {
   const user = await requireVerifiedUser('/schedule'); // redirects to /login if not signed in
@@ -16,37 +22,45 @@ export default async function SchedulePage() {
     items = await getGuestSchedule(db);
   } catch {
     return (
-      <main style={wrap}>
-        <h1>Your schedule</h1>
-        <p style={{ color: '#b00020' }}>We couldn’t load your schedule right now. Please refresh in a moment.</p>
-      </main>
+      <Shell>
+        <div className="sg-topbar">
+          <span className="sg-brand">Sangam</span>
+          <form action="/auth/signout" method="post">
+            <button type="submit" className="sg-signout">Sign out</button>
+          </form>
+        </div>
+        <div className="sg-empty">
+          <div className="sg-empty__title">We couldn’t load your schedule</div>
+          <p style={{ margin: 0 }}>Please refresh in a moment.</p>
+        </div>
+      </Shell>
     );
   }
 
   return (
-    <main style={wrap}>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          gap: 12,
-          flexWrap: 'wrap',
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0 }}>Your schedule</h1>
-          <div style={{ fontSize: 13, color: '#777' }}>{user.email}</div>
-        </div>
+    <Shell>
+      <div className="sg-topbar">
+        <span className="sg-brand">Sangam</span>
         <form action="/auth/signout" method="post">
-          <button type="submit" style={{ padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>
-            Sign out
-          </button>
+          <button type="submit" className="sg-signout">Sign out</button>
         </form>
+      </div>
+
+      <header className="sg-hero">
+        <div className="sg-eyebrow">Your invitation</div>
+        <h1>Your schedule</h1>
+        <p>{user.email}</p>
       </header>
 
+      <div className="sg-ornament">
+        <span />
+        <b>✦</b>
+        <span />
+      </div>
+
       <ScheduleView items={items} />
-    </main>
+
+      <div className="sg-foot">Sangam · two families, one celebration</div>
+    </Shell>
   );
 }

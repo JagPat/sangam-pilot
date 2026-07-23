@@ -7,26 +7,65 @@ import type { ScheduleItem } from '@/lib/data/schedule';
 // Lets us screenshot the real ScheduleView / RsvpControl components without a running Supabase backend.
 export const dynamic = 'force-dynamic';
 
-const wrap = { padding: 24, maxWidth: 640, margin: '0 auto', fontFamily: 'system-ui, sans-serif', lineHeight: 1.5 } as const;
-
 const FIXTURES: ScheduleItem[] = [
+  // Fully enriched, bride's side, already accepted — the "declared" card.
   {
     invitationGuestId: 'p1', eventInstanceId: 'i1', guestId: 'g1', guestName: 'Jaya Patel',
     functionName: 'Pithi', functionType: 'pithi', tz: 'Asia/Kolkata',
     arrivalInstant: '2026-12-10T04:30:00Z', arrivalWallLocal: '2026-12-10T10:00:00', arrivalOffsetMinutes: 330,
-    venueName: 'Patel Residence, Ahmedabad', rsvpStatus: 'accepted', rowVersion: 1,
+    ceremonyInstant: null,
+    venueName: 'Patel Residence', venueAddress: '12 Satellite Road, Ahmedabad',
+    directionsUrl: 'https://www.google.com/maps/search/?api=1&query=Patel%20Residence%20Ahmedabad',
+    dressCode: 'Yellow & floral', muhuratKind: 'instant', muhuratStartInstant: '2026-12-10T05:10:00Z', muhuratEndInstant: null,
+    choghadiyaText: 'Amrit Choghadiya', tithiText: 'Margashirsha Shukla Dashami',
+    streamUrl: null, familySide: 'bride', cancelled: false, rsvpStatus: 'accepted', rowVersion: 1,
   },
+  // Both families, muhurat window, live stream, not yet responded.
   {
     invitationGuestId: 'p2', eventInstanceId: 'i2', guestId: 'g1', guestName: 'Jaya Patel',
-    functionName: 'Sangeet', functionType: 'sangeet', tz: 'Asia/Kolkata',
+    functionName: 'Sangeet Night', functionType: 'sangeet', tz: 'Asia/Kolkata',
     arrivalInstant: '2026-12-11T13:30:00Z', arrivalWallLocal: '2026-12-11T19:00:00', arrivalOffsetMinutes: 330,
-    venueName: 'The Grand Bhagwati', rsvpStatus: null, rowVersion: null,
+    ceremonyInstant: null,
+    venueName: 'The Grand Bhagwati', venueAddress: 'Sindhu Bhavan Road, Ahmedabad',
+    directionsUrl: 'https://www.google.com/maps/search/?api=1&query=The%20Grand%20Bhagwati%20Ahmedabad',
+    dressCode: 'Festive · Indian formal', muhuratKind: 'window', muhuratStartInstant: '2026-12-11T14:10:00Z', muhuratEndInstant: '2026-12-11T15:30:00Z',
+    choghadiyaText: null, tithiText: null,
+    streamUrl: 'https://www.youtube.com/live/example', familySide: 'mutual', cancelled: false, rsvpStatus: null, rowVersion: null,
   },
+  // Cross-border: groom's side, New York (EST), black-tie, tentative.
   {
     invitationGuestId: 'p3', eventInstanceId: 'i3', guestId: 'g1', guestName: 'Jaya Patel',
-    functionName: 'Wedding Ceremony', functionType: 'ceremony', tz: 'Asia/Kolkata',
-    arrivalInstant: '2026-12-12T03:00:00Z', arrivalWallLocal: '2026-12-12T08:30:00', arrivalOffsetMinutes: 330,
-    venueName: 'Riverfront Lawns', rsvpStatus: 'tentative', rowVersion: 2,
+    functionName: 'Reception', functionType: 'reception', tz: 'America/New_York',
+    arrivalInstant: '2026-12-20T23:30:00Z', arrivalWallLocal: '2026-12-20T18:30:00', arrivalOffsetMinutes: -300,
+    ceremonyInstant: null,
+    venueName: 'The Plaza', venueAddress: '768 5th Avenue, New York',
+    directionsUrl: 'https://www.google.com/maps/search/?api=1&query=The%20Plaza%20New%20York',
+    dressCode: 'Black-tie', muhuratKind: null, muhuratStartInstant: null, muhuratEndInstant: null,
+    choghadiyaText: null, tithiText: null,
+    streamUrl: null, familySide: 'groom', cancelled: false, rsvpStatus: 'tentative', rowVersion: 2,
+  },
+  // Un-enriched fallback: no venue, no dress/muhurat yet — still a calm, complete card.
+  {
+    invitationGuestId: 'p4', eventInstanceId: 'i4', guestId: 'g1', guestName: 'Jaya Patel',
+    functionName: 'Mehndi', functionType: 'mehndi', tz: 'Asia/Kolkata',
+    arrivalInstant: '2026-12-09T09:00:00Z', arrivalWallLocal: '2026-12-09T14:30:00', arrivalOffsetMinutes: 330,
+    ceremonyInstant: null,
+    venueName: null, venueAddress: null, directionsUrl: null,
+    dressCode: null, muhuratKind: null, muhuratStartInstant: null, muhuratEndInstant: null,
+    choghadiyaText: null, tithiText: null,
+    streamUrl: null, familySide: null, cancelled: false, rsvpStatus: null, rowVersion: null,
+  },
+  // Cancelled — essentials stay visible, no RSVP control.
+  {
+    invitationGuestId: 'p5', eventInstanceId: 'i5', guestId: 'g1', guestName: 'Jaya Patel',
+    functionName: 'Garba', functionType: 'garba', tz: 'Asia/Kolkata',
+    arrivalInstant: '2026-12-11T15:00:00Z', arrivalWallLocal: '2026-12-11T20:30:00', arrivalOffsetMinutes: 330,
+    ceremonyInstant: null,
+    venueName: 'Community Grounds', venueAddress: 'Bodakdev, Ahmedabad',
+    directionsUrl: 'https://www.google.com/maps/search/?api=1&query=Bodakdev%20Ahmedabad',
+    dressCode: 'Traditional', muhuratKind: null, muhuratStartInstant: null, muhuratEndInstant: null,
+    choghadiyaText: null, tithiText: null,
+    streamUrl: null, familySide: 'bride', cancelled: true, rsvpStatus: null, rowVersion: null,
   },
 ];
 
@@ -34,20 +73,45 @@ export default function PreviewSchedule() {
   if (process.env.PREVIEW_FIXTURES !== '1') notFound();
 
   return (
-    <main style={wrap}>
-      <header style={{ marginBottom: 16 }}>
-        <h1 style={{ margin: 0 }}>Your schedule</h1>
-        <div style={{ fontSize: 13, color: '#777' }}>jaya@example.com · preview (fixture data)</div>
-      </header>
+    <main className="sg-guest">
+      <div className="sg-shell">
+        <div className="sg-topbar">
+          <span className="sg-brand">Sangam</span>
+          <form action="#" method="post">
+            <button type="submit" className="sg-signout">Sign out</button>
+          </form>
+        </div>
 
-      <ScheduleView items={FIXTURES} />
+        <header className="sg-hero">
+          <div className="sg-eyebrow">Your invitation</div>
+          <h1>Your schedule</h1>
+          <p>jaya@example.com · preview (fixture data)</p>
+        </header>
 
-      <h2 style={{ marginTop: 28, fontSize: 15 }}>RSVP — confirm step (preview)</h2>
-      <section style={{ border: '1px solid #e5e5e5', borderRadius: 10, padding: 16, background: '#fff' }}>
-        <div style={{ fontSize: 18, fontWeight: 600 }}>Sangeet <span style={{ fontWeight: 400, color: '#777' }}>· sangeet</span></div>
-        <div style={{ marginTop: 4 }}>Friday, December 11, 2026 at 7:00 PM <span style={{ color: '#999' }}>(Asia/Kolkata)</span></div>
-        <RsvpControl invitationGuestId="preview" label="Sangeet" status={null} rowVersion={null} initialEcho="accepted" />
-      </section>
+        <div className="sg-ornament">
+          <span />
+          <b>✦</b>
+          <span />
+        </div>
+
+        <ScheduleView items={FIXTURES} />
+
+        <div className="sg-ornament" style={{ marginTop: 40 }}>
+          <span />
+          <b>RSVP · confirm step</b>
+          <span />
+        </div>
+        <article className="sg-card sg-card--event">
+          <div className="sg-card__topline is-bride" />
+          <div className="sg-card__body">
+            <div className="sg-card__tag">sangeet</div>
+            <h2 className="sg-card__name" style={{ marginBottom: 0 }}>Sangeet Night</h2>
+            <RsvpControl invitationGuestId="preview" label="Sangeet Night" status={null} rowVersion={null} initialEcho="accepted" />
+          </div>
+        </article>
+
+        <div className="sg-foot">Sangam · two families, one celebration</div>
+      </div>
     </main>
   );
 }
