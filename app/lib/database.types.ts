@@ -38,6 +38,8 @@ type HostGroupRow = { id: string; wedding_id: string; kind: string; name: string
 type FinanceExpenseRow = { id: string; wedding_id: string; description: string; category: string; amount: number; currency_code: string; paid_at: string; paid_by_host_group_id: string; created_by_account_id: string | null; note: string | null; created_at: string };
 type FinanceAllocationRow = { id: string; wedding_id: string; expense_id: string; responsible_host_group_id: string; allocation_amount: number };
 type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; currency_code: string; paid_amount: number; allocated_amount: number; net_position: number };
+type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
+type EngagementRow = { id: string; wedding_id: string; vendor_id: string; event_instance_id: string | null; state: string; role_title: string | null; blurb: string | null; quote_amount: number | null; quote_currency: string | null; notes: string | null; created_at: string; updated_at: string };
 
 // Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
 // the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
@@ -91,6 +93,8 @@ export type Database = {
       host_group: { Row: HostGroupRow; Insert: Partial<HostGroupRow>; Update: Partial<HostGroupRow>; Relationships: [] };
       finance_expense: { Row: FinanceExpenseRow; Insert: Partial<FinanceExpenseRow>; Update: Partial<FinanceExpenseRow>; Relationships: [] };
       finance_expense_allocation: { Row: FinanceAllocationRow; Insert: Partial<FinanceAllocationRow>; Update: Partial<FinanceAllocationRow>; Relationships: [] };
+      vendor: { Row: VendorRow; Insert: Partial<VendorRow>; Update: Partial<VendorRow>; Relationships: [] };
+      engagement: { Row: EngagementRow; Insert: Partial<EngagementRow>; Update: Partial<EngagementRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
@@ -193,6 +197,11 @@ export type Database = {
       owner_list_operators: {
         Args: { p_wedding: string };
         Returns: { id: string; account_id: string; role: string; host_group_id: string | null; email: string | null; linked: boolean }[];
+      };
+      // Guest-facing: confirmed performers for the events the caller is invited to (no vendor list / quotes).
+      my_event_performers: {
+        Args: Record<string, never>;
+        Returns: { event_instance_id: string; vendor_name: string; role_title: string | null; blurb: string | null }[];
       };
     };
     Enums: EmptyMap;

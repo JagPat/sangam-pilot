@@ -3,6 +3,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getFinanceData, type FinanceWedding, type FinanceExpense } from '@/lib/data/finance';
 import { addExpense, updateExpense, deleteExpense } from './actions';
+import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,22 +22,6 @@ function money(amount: number, currency: string): string {
   } catch {
     return `${currency} ${amount.toFixed(2)}`;
   }
-}
-
-function HostHead() {
-  return (
-    <header className="sg-host-head">
-      <nav className="sg-hostnav">
-        <span className="sg-brand">Sangam</span>
-        <a href="/host">Dashboard</a>
-        <a href="/host/setup">Venues &amp; events</a>
-        <a href="/host/manage">Guests</a>
-        <a href="/host/groups">Families &amp; admins</a>
-        <a href="/host/finance" aria-current="page">Finance</a>
-      </nav>
-      <form action="/auth/signout" method="post"><button type="submit" className="sg-signout">Sign out</button></form>
-    </header>
-  );
 }
 
 function ExpenseForm({ w, e }: { w: FinanceWedding; e?: FinanceExpense }) {
@@ -241,7 +226,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     return (
       <main className="sg-host">
         <div className="sg-host-shell">
-          <HostHead />
+          <HostNav current="finance" />
           <div className="sg-pagehead"><h1>Finance</h1></div>
           <div className="sg-banner is-err">We couldn’t load this page right now. Please refresh in a moment.</div>
         </div>
@@ -252,7 +237,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   return (
     <main className="sg-host">
       <div className="sg-host-shell">
-        <HostHead />
+        <HostNav current="finance" />
 
         {banner ? <div className={"sg-banner " + (banner.kind === 'ok' ? 'is-ok' : 'is-err')}>{banner.text}</div> : null}
 

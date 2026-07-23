@@ -2,6 +2,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getManageData, type ManageWedding, type ManageEvent, type ManageGuest } from '@/lib/data/manage';
 import { addGuest, updateGuest, inviteGuest, uninviteGuest, removeGuest } from './actions';
+import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,22 +25,6 @@ function fmt(instant: string | null, tz: string): string {
   } catch {
     return '';
   }
-}
-
-function HostHeader() {
-  return (
-    <header className="sg-host-head">
-      <nav className="sg-hostnav">
-        <span className="sg-brand">Sangam</span>
-        <a href="/host">Dashboard</a>
-        <a href="/host/setup">Venues &amp; events</a>
-        <a href="/host/manage" aria-current="page">Guests</a>
-        <a href="/host/groups">Families &amp; admins</a>
-        <a href="/host/finance">Finance</a>
-      </nav>
-      <form action="/auth/signout" method="post"><button type="submit" className="sg-signout">Sign out</button></form>
-    </header>
-  );
 }
 
 function StatusChip({ g }: { g: ManageGuest }) {
@@ -192,7 +177,7 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
     return (
       <main className="sg-host">
         <div className="sg-host-shell">
-          <HostHeader />
+          <HostNav current="manage" />
           <div className="sg-pagehead"><h1>Manage guests</h1></div>
           <div className="sg-banner is-err">We couldn’t load this page right now. Please refresh in a moment.</div>
         </div>
@@ -203,7 +188,7 @@ export default async function ManagePage({ searchParams }: { searchParams: Promi
   return (
     <main className="sg-host">
       <div className="sg-host-shell">
-        <HostHeader />
+        <HostNav current="manage" />
 
         {banner ? (
           <div className={'sg-banner ' + (banner.kind === 'ok' ? 'is-ok' : 'is-err')}>{banner.text}</div>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getHostDashboard, type WeddingDashboard, type EventRollup } from '@/lib/data/host';
+import { HostNav } from './HostNav';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the owner's session + owner-scoped rows.
 
@@ -24,22 +25,6 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 function Badge({ status }: { status: string }) {
   const s = STATUS[status] ?? STATUS['no response'];
   return <span className={`sg-pill ${s.cls}`}>{s.label}</span>;
-}
-
-function HostHead() {
-  return (
-    <header className="sg-host-head">
-      <nav className="sg-hostnav">
-        <span className="sg-brand">Sangam</span>
-        <Link href="/host" aria-current="page">Dashboard</Link>
-        <Link href="/host/setup">Venues &amp; events</Link>
-        <Link href="/host/manage">Guests</Link>
-        <Link href="/host/groups">Families &amp; admins</Link>
-        <Link href="/host/finance">Finance</Link>
-      </nav>
-      <form action="/auth/signout" method="post"><button type="submit" className="sg-signout">Sign out</button></form>
-    </header>
-  );
 }
 
 function EventTable({ events }: { events: EventRollup[] }) {
@@ -177,7 +162,7 @@ export default async function HostPage() {
     return (
       <main className="sg-host">
         <div className="sg-host-shell">
-          <HostHead />
+          <HostNav current="dashboard" />
           <div className="sg-pagehead"><h1>Organizer dashboard</h1></div>
           <div className="sg-banner is-err">We couldn’t load the dashboard right now. Please refresh in a moment.</div>
         </div>
@@ -188,7 +173,7 @@ export default async function HostPage() {
   return (
     <main className="sg-host">
       <div className="sg-host-shell">
-        <HostHead />
+        <HostNav current="dashboard" />
         {dashboards.length === 0 ? (
           <div className="sg-empty">
             <h1 className="sg-empty__title">Organizer dashboard</h1>

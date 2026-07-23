@@ -18,9 +18,11 @@ const FIXTURES: ScheduleItem[] = [
     directionsUrl: 'https://www.google.com/maps/search/?api=1&query=Patel%20Residence%20Ahmedabad',
     dressCode: 'Yellow & floral', muhuratKind: 'instant', muhuratStartInstant: '2026-12-10T05:10:00Z', muhuratEndInstant: null,
     choghadiyaText: 'Amrit Choghadiya', tithiText: 'Margashirsha Shukla Dashami',
-    streamUrl: null, familySide: 'bride', cancelled: false, rsvpStatus: 'accepted', rowVersion: 1,
+    streamUrl: null, familySide: 'bride', cancelled: false,
+    performers: [],
+    rsvpStatus: 'accepted', rowVersion: 1,
   },
-  // Both families, muhurat window, live stream, not yet responded.
+  // Both families, muhurat window, live stream, performers, not yet responded.
   {
     invitationGuestId: 'p2', eventInstanceId: 'i2', guestId: 'g1', guestName: 'Jaya Patel',
     functionName: 'Sangeet Night', functionType: 'sangeet', tz: 'Asia/Kolkata',
@@ -30,9 +32,14 @@ const FIXTURES: ScheduleItem[] = [
     directionsUrl: 'https://www.google.com/maps/search/?api=1&query=The%20Grand%20Bhagwati%20Ahmedabad',
     dressCode: 'Festive · Indian formal', muhuratKind: 'window', muhuratStartInstant: '2026-12-11T14:10:00Z', muhuratEndInstant: '2026-12-11T15:30:00Z',
     choghadiyaText: null, tithiText: null,
-    streamUrl: 'https://www.youtube.com/live/example', familySide: 'mutual', cancelled: false, rsvpStatus: null, rowVersion: null,
+    streamUrl: 'https://www.youtube.com/live/example', familySide: 'mutual', cancelled: false,
+    performers: [
+      { name: 'DJ Rehan', role: 'DJ', blurb: 'Bollywood & house · 200+ weddings' },
+      { name: 'Dhol Foundation', role: 'Dhol troupe', blurb: 'A five-piece live dhol welcome' },
+    ],
+    rsvpStatus: null, rowVersion: null,
   },
-  // Cross-border: groom's side, New York (EST), black-tie, tentative.
+  // Cross-border: groom's side, New York (EST), black-tie, a live band, tentative.
   {
     invitationGuestId: 'p3', eventInstanceId: 'i3', guestId: 'g1', guestName: 'Jaya Patel',
     functionName: 'Reception', functionType: 'reception', tz: 'America/New_York',
@@ -42,7 +49,9 @@ const FIXTURES: ScheduleItem[] = [
     directionsUrl: 'https://www.google.com/maps/search/?api=1&query=The%20Plaza%20New%20York',
     dressCode: 'Black-tie', muhuratKind: null, muhuratStartInstant: null, muhuratEndInstant: null,
     choghadiyaText: null, tithiText: null,
-    streamUrl: null, familySide: 'groom', cancelled: false, rsvpStatus: 'tentative', rowVersion: 2,
+    streamUrl: null, familySide: 'groom', cancelled: false,
+    performers: [{ name: 'The Manhattan Quartet', role: 'Live band', blurb: 'Jazz & standards' }],
+    rsvpStatus: 'tentative', rowVersion: 2,
   },
   // Un-enriched fallback: no venue, no dress/muhurat yet — still a calm, complete card.
   {
@@ -53,7 +62,9 @@ const FIXTURES: ScheduleItem[] = [
     venueName: null, venueAddress: null, directionsUrl: null,
     dressCode: null, muhuratKind: null, muhuratStartInstant: null, muhuratEndInstant: null,
     choghadiyaText: null, tithiText: null,
-    streamUrl: null, familySide: null, cancelled: false, rsvpStatus: null, rowVersion: null,
+    streamUrl: null, familySide: null, cancelled: false,
+    performers: [],
+    rsvpStatus: null, rowVersion: null,
   },
   // Cancelled — essentials stay visible, no RSVP control.
   {
@@ -65,7 +76,9 @@ const FIXTURES: ScheduleItem[] = [
     directionsUrl: 'https://www.google.com/maps/search/?api=1&query=Bodakdev%20Ahmedabad',
     dressCode: 'Traditional', muhuratKind: null, muhuratStartInstant: null, muhuratEndInstant: null,
     choghadiyaText: null, tithiText: null,
-    streamUrl: null, familySide: 'bride', cancelled: true, rsvpStatus: null, rowVersion: null,
+    streamUrl: null, familySide: 'bride', cancelled: true,
+    performers: [],
+    rsvpStatus: null, rowVersion: null,
   },
 ];
 

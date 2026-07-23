@@ -36,6 +36,7 @@ export type ScheduleItem = {
   streamUrl: string | null;
   familySide: FamilySide | null;
   cancelled: boolean;
+  performers: { name: string; role: string | null; blurb: string | null }[];
   rsvpStatus: AttendanceStatus | null;
   rowVersion: number | null;
 };
@@ -68,7 +69,7 @@ export async function getGuestSchedule(db: AppSupabaseClient): Promise<ScheduleI
   const guestIds = [...new Set(igs.map((r) => r.guest_id))];
   const igIds = igs.map((r) => r.id);
 
-  const [inst, guests, att, ehg] = await Promise.all([
+  const [inst, guests, att, ehg, perfRes] = await Promise.all([
     app
       .from('event_instance')
       .select(
@@ -78,11 +79,13 @@ export async function getGuestSchedule(db: AppSupabaseClient): Promise<ScheduleI
     app.from('guest').select('id, full_name').in('id', guestIds),
     app.from('event_attendance').select('invitation_guest_id, status, row_version').in('invitation_guest_id', igIds),
     app.from('event_host_group').select('event_instance_id, host_group_id').in('event_instance_id', instanceIds),
+    app.rpc('my_event_performers'),
   ]);
   if (inst.error) throw inst.error;
   if (guests.error) throw guests.error;
   if (att.error) throw att.error;
   if (ehg.error) throw ehg.error;
+  if (perfRes.error) throw perfRes.error;
 
   const functionIds = [...new Set((inst.data ?? []).map((r) => r.event_function_id))];
   const venueIds = [...new Set((inst.data ?? []).map((r) => r.venue_id).filter((v): v is string => Boolean(v)))];
@@ -105,6 +108,14 @@ export async function getGuestSchedule(db: AppSupabaseClient): Promise<ScheduleI
   const funcById = new Map((funcs.data ?? []).map((r) => [r.id, r]));
   const venueById = new Map((venues.data ?? []).map((r) => [r.id, r]));
   const kindByGroup = new Map((groups.data ?? []).map((r) => [r.id, r.kind]));
+
+  // confirmed performers (vendor module), keyed by the event they serve
+  const perfByInstance = new Map<string, { name: string; role: string | null; blurb: string | null }[]>();
+  for (const p of perfRes.data ?? []) {
+    const arr = perfByInstance.get(p.event_instance_id) ?? [];
+    arr.push({ name: p.vendor_name, role: p.role_title ?? null, blurb: p.blurb ?? null });
+    perfByInstance.set(p.event_instance_id, arr);
+  }
 
   // instance -> the set of host_group kinds hosting it
   const kindsByInstance = new Map<string, string[]>();
@@ -146,6 +157,7 @@ export async function getGuestSchedule(db: AppSupabaseClient): Promise<ScheduleI
       streamUrl: ei?.stream_url ?? null,
       familySide: sideFromKinds(kindsByInstance.get(ig.event_instance_id) ?? []),
       cancelled: (ei?.scheduled_status ?? 'scheduled') === 'cancelled',
+      performers: perfByInstance.get(ig.event_instance_id) ?? [],
       rsvpStatus: (a?.status as AttendanceStatus | undefined) ?? null,
       rowVersion: a?.row_version ?? null,
     };

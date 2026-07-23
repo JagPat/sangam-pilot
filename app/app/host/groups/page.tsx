@@ -2,6 +2,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getGroupsData, type GroupsWedding, type FamilyGroup, type GroupOperator } from '@/lib/data/groups';
 import { createGroup, renameGroup, deleteGroup, assignAdmin, removeOperator } from './actions';
+import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the owner's session + owner-scoped rows.
 
@@ -26,22 +27,6 @@ const MESSAGES: Record<string, { kind: 'ok' | 'err'; text: string }> = {
   inuse: { kind: 'err', text: "This family still has admins, households, or expenses attached — remove those first." },
   save: { kind: 'err', text: "Couldn't save — please check the details and try again." },
 };
-
-function HostHeader() {
-  return (
-    <header className="sg-host-head">
-      <nav className="sg-hostnav">
-        <span className="sg-brand">Sangam</span>
-        <a href="/host">Dashboard</a>
-        <a href="/host/setup">Venues &amp; events</a>
-        <a href="/host/manage">Guests</a>
-        <a href="/host/groups" aria-current="page">Families &amp; admins</a>
-        <a href="/host/finance">Finance</a>
-      </nav>
-      <form action="/auth/signout" method="post"><button type="submit" className="sg-signout">Sign out</button></form>
-    </header>
-  );
-}
 
 function KindBadge({ kind }: { kind: string }) {
   const cls = kind === 'bride_family' ? 'is-bride' : kind === 'groom_family' ? 'is-groom' : 'is-wait';
@@ -194,7 +179,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
     return (
       <main className="sg-host">
         <div className="sg-host-shell">
-          <HostHeader />
+          <HostNav current="groups" />
           <div className="sg-pagehead"><h1>Families &amp; admins</h1></div>
           <div className="sg-banner is-err">We couldn’t load this page right now. Please refresh in a moment.</div>
         </div>
@@ -205,7 +190,7 @@ export default async function GroupsPage({ searchParams }: { searchParams: Promi
   return (
     <main className="sg-host">
       <div className="sg-host-shell">
-        <HostHeader />
+        <HostNav current="groups" />
 
         {banner ? (
           <div className={"sg-banner " + (banner.kind === 'ok' ? 'is-ok' : 'is-err')}>{banner.text}</div>

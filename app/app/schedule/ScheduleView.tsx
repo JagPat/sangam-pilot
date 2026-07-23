@@ -28,6 +28,10 @@ function timeOnly(instant: string, tz: string): string {
 
 const FAM_LABEL: Record<FamilySide, string> = { bride: "Bride's side", groom: "Groom's side", mutual: 'Both families' };
 
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('') || '·';
+}
+
 const Icon = {
   cal: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -129,6 +133,21 @@ function EventCard({ it, multiGuest }: { it: ScheduleItem; multiGuest: boolean }
           <div className="sg-auspic">
             {it.tithiText ? <span>{it.tithiText}</span> : null}
             {it.choghadiyaText ? <span>{it.choghadiyaText}</span> : null}
+          </div>
+        ) : null}
+
+        {it.performers.length ? (
+          <div className="sg-perf">
+            <div className="sg-perf__head">Performing</div>
+            {it.performers.map((p, idx) => (
+              <div className="sg-perf__row" key={idx}>
+                <span className="sg-perf__avatar">{initials(p.name)}</span>
+                <div>
+                  <div className="sg-perf__name">{p.name}{p.role ? <span className="sg-perf__role"> · {p.role}</span> : null}</div>
+                  {p.blurb ? <div className="sg-perf__blurb">{p.blurb}</div> : null}
+                </div>
+              </div>
+            ))}
           </div>
         ) : null}
 

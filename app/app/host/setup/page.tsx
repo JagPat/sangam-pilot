@@ -2,6 +2,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getSetupData, type SetupWedding, type SetupEvent, type SetupFamily } from '@/lib/data/setup';
 import { createWedding, addVenue, addEvent, updateEvent } from './actions';
+import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
 
@@ -253,17 +254,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   return (
     <main className="sg-host">
       <div className="sg-host-shell">
-        <header className="sg-host-head">
-          <nav className="sg-hostnav">
-            <span className="sg-brand">Sangam</span>
-            <a href="/host">Dashboard</a>
-            <a href="/host/setup" aria-current="page">Venues &amp; events</a>
-            <a href="/host/manage">Guests</a>
-            <a href="/host/groups">Families &amp; admins</a>
-            <a href="/host/finance">Finance</a>
-          </nav>
-          <form action="/auth/signout" method="post"><button type="submit" className="sg-signout">Sign out</button></form>
-        </header>
+        <HostNav current="setup" />
 
         {banner ? (
           <div className={'sg-banner ' + (banner.kind === 'ok' ? 'is-ok' : 'is-err')}>{banner.text}</div>

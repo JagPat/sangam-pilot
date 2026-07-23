@@ -177,6 +177,15 @@ body {
 .sg-stream:hover { text-decoration: underline; }
 .sg-cancel { margin: 2px 0 0; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--clay); background: var(--clay-soft); border-radius: 999px; padding: 5px 12px; }
 
+/* performers ("Performing" on the guest card) */
+.sg-perf { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 13px; display: grid; gap: 11px; }
+.sg-perf__head { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--gold-deep); font-weight: 700; }
+.sg-perf__row { display: flex; gap: 11px; align-items: flex-start; }
+.sg-perf__avatar { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-serif); font-weight: 600; font-size: 15px; background: var(--gold-soft); color: var(--gold-deep); border: 1px solid var(--gold); }
+.sg-perf__name { font-weight: 600; font-size: 14.5px; color: var(--ink); }
+.sg-perf__role { font-weight: 500; color: var(--ink-2); }
+.sg-perf__blurb { font-size: 12.5px; color: var(--ink-2); }
+
 /* ============================ organizer (host) surface ============================ */
 .sg-host { min-height: 100vh; background: radial-gradient(120% 50% at 50% -10%, var(--gold-soft) 0%, rgba(245,235,216,0) 55%), var(--ivory); }
 .sg-host::before { content: ''; display: block; height: 4px; background: linear-gradient(90deg, var(--gold), var(--gold-bright) 50%, var(--gold)); }
