@@ -3,11 +3,14 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverClientRW } from '@/lib/supabase/serverClient';
+import type { AppSupabaseClient } from '@/lib/supabase/clients';
+import { getOperatorContext } from '@/lib/data/owner';
 
-// Organizer guest + invitation management. Every write runs under the OWNER's own session, so the existing
-// owner_write RLS policies (is_wedding_owner) are the real guard — a non-owner's write is denied by the
-// database, not just the UI. RSVPs are deliberately NOT touched here: attendance is written only through
-// the two-step propose/confirm command path, and this screen never uses the service role.
+// Organizer guest + invitation management. Every write runs under the signed-in user's own session, so RLS
+// is the real guard: the OWNER can write any guest; a bride/groom-side FAMILY ADMIN can only write rows on
+// their own side (migration 0016) — a cross-side write is denied by the database, not just the UI. RSVPs are
+// deliberately NOT touched here: attendance is written only through the two-step propose/confirm command
+// path, and this screen never uses the service role.
 
 function s(fd: FormData, k: string): string {
   return String(fd.get(k) ?? '').trim();
@@ -30,16 +33,22 @@ export async function addGuest(fd: FormData): Promise<void> {
   const email = s(fd, 'email').toLowerCase();
   const householdId = s(fd, 'householdId');
   const newHousehold = s(fd, 'newHouseholdName');
+  const chosenSide = s(fd, 'householdSide') || null;
   if (!weddingId || !fullName) fail('name');
 
   let ok = true;
   let code = 'save';
   try {
-    const app = (await serverClientRW()).schema('app');
+    const client = await serverClientRW();
+    const app = client.schema('app');
+    // A NEW household's side: the owner may choose one; a family admin's is forced to the side they manage
+    // (the RLS WITH CHECK on household requires it, so this is what lets their insert succeed at all).
+    const vc = (await getOperatorContext(client as unknown as AppSupabaseClient)).byWedding[weddingId] ?? { isOwner: false, adminGroupId: null };
+    const newHouseholdSide = vc.isOwner ? chosenSide : vc.adminGroupId;
 
     let hhId = householdId;
     if (!hhId && newHousehold) {
-      const { data, error } = await app.from('household').insert({ wedding_id: weddingId, name: newHousehold }).select('id').single();
+      const { data, error } = await app.from('household').insert({ wedding_id: weddingId, name: newHousehold, host_group_id: newHouseholdSide }).select('id').single();
       if (error) throw error;
       hhId = data.id;
     }
@@ -68,6 +77,27 @@ export async function addGuest(fd: FormData): Promise<void> {
     code = 'save';
   }
   if (!ok) fail(code);
+  done();
+}
+
+// ---- Assign a household to a side (bride's/groom's/… host group). Owner-only in the UI; RLS also lets a
+// family admin keep a household on their OWN side, but they can never move it to another side. Empty = clear. ----
+export async function setHouseholdSide(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const householdId = s(fd, 'householdId');
+  const hostGroupId = s(fd, 'hostGroupId') || null;
+  if (!weddingId || !householdId) fail('save');
+
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('household').update({ host_group_id: hostGroupId }).eq('wedding_id', weddingId).eq('id', householdId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam manage] setHouseholdSide', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
   done();
 }
 

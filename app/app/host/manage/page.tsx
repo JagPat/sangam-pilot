@@ -1,7 +1,7 @@
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getManageData, DIETARY_CATEGORIES, JAIN_STRICTNESS, type ManageWedding, type ManageEvent, type ManageGuest } from '@/lib/data/manage';
-import { addGuest, updateGuest, saveDietary, inviteGuest, uninviteGuest, removeGuest } from './actions';
+import { addGuest, updateGuest, saveDietary, inviteGuest, uninviteGuest, removeGuest, setHouseholdSide } from './actions';
 import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
@@ -64,14 +64,20 @@ function EventCell({ w, g, ev }: { w: ManageWedding; g: ManageGuest; ev: ManageE
   );
 }
 
+function sideNameFor(w: ManageWedding, hostGroupId: string | null): string | null {
+  return hostGroupId ? (w.sides.find((s) => s.id === hostGroupId)?.name ?? null) : null;
+}
+
 function GuestRow({ w, g }: { w: ManageWedding; g: ManageGuest }) {
+  const hh = w.households.find((h) => h.id === g.householdId);
+  const sideName = sideNameFor(w, hh?.hostGroupId ?? null);
   return (
     <tr>
       <td>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
           <strong>{g.guestName ?? '—'}</strong>
           <span className="sg-muted">{g.email ?? 'no email'}</span>
-          <span className="sg-muted">{g.householdName ?? ''}</span>
+          <span className="sg-muted">{g.householdName ?? ''}{sideName ? ' · ' : ''}{sideName ? <span className="sg-badge is-wait">{sideName}</span> : null}</span>
           <StatusChip g={g} />
         </div>
       </td>
@@ -122,11 +128,13 @@ function GuestRow({ w, g }: { w: ManageWedding; g: ManageGuest }) {
             <button type="submit" className="sg-btn sg-btn--primary sg-btn--sm">Save dietary</button>
           </form>
 
-          <form action={removeGuest} style={{ marginTop: 10 }}>
-            <input type="hidden" name="weddingId" value={w.weddingId} />
-            <input type="hidden" name="guestId" value={g.guestId} />
-            <button type="submit" className="sg-btn sg-btn--danger sg-btn--sm">Delete guest</button>
-          </form>
+          {w.viewerIsOwner ? (
+            <form action={removeGuest} style={{ marginTop: 10 }}>
+              <input type="hidden" name="weddingId" value={w.weddingId} />
+              <input type="hidden" name="guestId" value={g.guestId} />
+              <button type="submit" className="sg-btn sg-btn--danger sg-btn--sm">Delete guest</button>
+            </form>
+          ) : null}
         </details>
       </td>
     </tr>
@@ -134,13 +142,17 @@ function GuestRow({ w, g }: { w: ManageWedding; g: ManageGuest }) {
 }
 
 function WeddingManage({ w }: { w: ManageWedding }) {
+  const mySide = !w.viewerIsOwner ? sideNameFor(w, w.viewerGroupId) : null;
   return (
     <>
       <div className="sg-pagehead">
-        <h1>Manage · {w.title}</h1>
+        <h1>{w.viewerIsOwner ? `Manage · ${w.title}` : `${mySide ?? 'Your'} guests · ${w.title}`}</h1>
         <p>
-          Add guests with the email their invite will go to, then invite them to events. When a guest signs in with that
-          email, they’re linked automatically and see their schedule — no extra step.
+          {w.viewerIsOwner ? (
+            <>Add guests with the email their invite will go to, then invite them to events. When a guest signs in with that email, they’re linked automatically and see their schedule — no extra step.</>
+          ) : (
+            <>You’re managing the <strong>{mySide ?? 'your side’s'}</strong> guest list. Add and edit your side’s guests, invite them to events, and record their dietary needs — you only see and touch your own side.</>
+          )}
         </p>
       </div>
 
@@ -158,8 +170,20 @@ function WeddingManage({ w }: { w: ManageWedding }) {
             </select>
           </div>
           <div className="sg-field"><label>…or new household</label><input className="sg-input" name="newHouseholdName" placeholder="e.g. Shah Household" /></div>
+          {w.viewerIsOwner && w.sides.length ? (
+            <div className="sg-field">
+              <label>Side <span className="sg-muted">(new household)</span></label>
+              <select className="sg-select" name="householdSide" defaultValue="">
+                <option value="">— unassigned —</option>
+                {w.sides.map((sd) => <option key={sd.id} value={sd.id}>{sd.name}</option>)}
+              </select>
+            </div>
+          ) : null}
           <button type="submit" className="sg-btn sg-btn--primary">Add guest</button>
         </form>
+        {!w.viewerIsOwner && mySide ? (
+          <p className="sg-muted" style={{ marginTop: 8 }}>New households you add are placed on the <strong>{mySide}</strong> side automatically.</p>
+        ) : null}
       </section>
 
       <section className="sg-section">
@@ -191,6 +215,46 @@ function WeddingManage({ w }: { w: ManageWedding }) {
           </table>
         </div>
       </section>
+
+      {w.viewerIsOwner ? (
+        <section className="sg-section">
+          <h2>Households &amp; sides</h2>
+          {w.sides.length === 0 ? (
+            <div className="sg-banner is-err">No families defined yet. Create the bride’s and groom’s families under <strong>Families &amp; admins</strong>, then assign households here so each side’s admin can manage their own guests.</div>
+          ) : (
+            <>
+              <p className="sg-muted">Assign each household to a side. A family admin then manages only the guests on their side.</p>
+              <div className="sg-tablewrap">
+                <table className="sg-table">
+                  <thead><tr><th>Household</th><th>Side</th></tr></thead>
+                  <tbody>
+                    {w.households.length === 0 ? (
+                      <tr><td colSpan={2}><span className="sg-muted">No households yet — add a guest above.</span></td></tr>
+                    ) : (
+                      w.households.map((h) => (
+                        <tr key={h.id}>
+                          <td><strong>{h.name}</strong></td>
+                          <td>
+                            <form action={setHouseholdSide} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <input type="hidden" name="weddingId" value={w.weddingId} />
+                              <input type="hidden" name="householdId" value={h.id} />
+                              <select className="sg-select" name="hostGroupId" defaultValue={h.hostGroupId ?? ''} style={{ maxWidth: 240 }}>
+                                <option value="">— unassigned —</option>
+                                {w.sides.map((sd) => <option key={sd.id} value={sd.id}>{sd.name}</option>)}
+                              </select>
+                              <button type="submit" className="sg-btn sg-btn--ghost sg-btn--sm">Set</button>
+                            </form>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+      ) : null}
     </>
   );
 }

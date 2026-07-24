@@ -37,7 +37,9 @@ export async function getOrganizerNav(db: AppSupabaseClient): Promise<OrganizerN
     return { email, roleLabel: 'Event manager', sections: OWNER_SECTIONS };
   }
   if (rs.has('host_group_admin') || rs.has('co_host')) {
-    return { email, roleLabel: 'Family admin', sections: [] };
+    // Family admins currently co-manage their side's guests (layer 1). More sections light up as the
+    // scoped events/vendors layers land.
+    return { email, roleLabel: 'Family admin', sections: [{ href: '/host/manage', label: 'Guests', key: 'manage' }] };
   }
   return { email, roleLabel: null, sections: [] };
 }

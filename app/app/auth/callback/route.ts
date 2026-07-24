@@ -49,7 +49,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!nextParam) {
     try {
       const nav = await getOrganizerNav(supabase as unknown as AppSupabaseClient);
-      if (nav.sections.length > 0) dest = '/host';
+      // Land on the first section this role can use: the owner's is the Dashboard (/host); a family
+      // admin's is their scoped Guests screen (/host/manage).
+      if (nav.sections.length > 0) dest = nav.sections[0].href;
     } catch {
       /* fall back to the default guest landing */
     }
