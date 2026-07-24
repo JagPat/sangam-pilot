@@ -1,0 +1,196 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { serverClientRW } from '@/lib/supabase/serverClient';
+
+// Stay & Travel writes (layer 1). Owner session; the 0017 owner-only RLS is the guard. The DB trigger
+// enforces room capacity and no double-booking, surfaced here as friendly messages.
+
+function s(fd: FormData, k: string): string {
+  return String(fd.get(k) ?? '').trim();
+}
+function errCode(e: unknown): string | undefined {
+  return typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code) : undefined;
+}
+function done(): never {
+  revalidatePath('/host/stay');
+  revalidatePath('/host');
+  redirect('/host/stay?ok=1');
+}
+function fail(code: string): never {
+  redirect(`/host/stay?err=${encodeURIComponent(code)}`);
+}
+
+export async function addHotel(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const name = s(fd, 'name');
+  const address = s(fd, 'address');
+  if (!weddingId || !name) fail('name');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('hotel').insert({ wedding_id: weddingId, name, address: address || null });
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] addHotel', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+// Bulk-add rooms of one type. Labels: a numeric start counts up (201, 202…); otherwise a prefix + index.
+export async function addRooms(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const hotelId = s(fd, 'hotelId');
+  const roomType = s(fd, 'roomType');
+  const capacity = parseInt(s(fd, 'capacity'), 10);
+  const count = parseInt(s(fd, 'count'), 10);
+  const startLabel = s(fd, 'startLabel');
+  if (!weddingId || !hotelId || !roomType) fail('rooms');
+  const cap = Number.isFinite(capacity) && capacity > 0 ? capacity : 2;
+  const n = Number.isFinite(count) && count > 0 ? Math.min(count, 500) : 1;
+  const startNum = parseInt(startLabel, 10);
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const rows = Array.from({ length: n }, (_, i) => ({
+      wedding_id: weddingId,
+      hotel_id: hotelId,
+      room_type: roomType,
+      capacity: cap,
+      label: Number.isFinite(startNum) ? String(startNum + i) : startLabel ? `${startLabel}-${i + 1}` : `${i + 1}`,
+    }));
+    const { error } = await app.from('room').insert(rows);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] addRooms', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+// Allocate a household to a room and seat up to the room's capacity of that household's guests.
+export async function allocateHousehold(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const roomId = s(fd, 'roomId');
+  const householdId = s(fd, 'householdId');
+  const checkIn = s(fd, 'checkIn') || null;
+  const checkOut = s(fd, 'checkOut') || null;
+  if (!weddingId || !roomId || !householdId) fail('alloc');
+  let ok = true;
+  let code = 'alloc';
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const [roomRes, guestsRes] = await Promise.all([
+      app.from('room').select('capacity').eq('wedding_id', weddingId).eq('id', roomId).single(),
+      app.from('guest').select('id').eq('wedding_id', weddingId).eq('household_id', householdId),
+    ]);
+    if (roomRes.error) throw roomRes.error;
+    if (guestsRes.error) throw guestsRes.error;
+
+    const { data: alloc, error: ea } = await app
+      .from('room_allocation')
+      .insert({ wedding_id: weddingId, room_id: roomId, household_id: householdId, check_in: checkIn, check_out: checkOut, status: 'held' })
+      .select('id')
+      .single();
+    if (ea) {
+      if (errCode(ea) === '23505') code = 'occupied';
+      throw ea;
+    }
+    const seat = (guestsRes.data ?? []).slice(0, roomRes.data!.capacity).map((g) => ({
+      wedding_id: weddingId,
+      allocation_id: alloc.id,
+      guest_id: g.id,
+    }));
+    if (seat.length) {
+      const { error: eo } = await app.from('room_occupant').insert(seat);
+      if (eo) throw eo;
+    }
+  } catch (e) {
+    console.error('[sangam stay] allocateHousehold', e);
+    ok = false;
+  }
+  if (!ok) fail(code);
+  done();
+}
+
+export async function setAllocationStatus(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const allocationId = s(fd, 'allocationId');
+  const status = s(fd, 'status');
+  if (!weddingId || !allocationId || !status) fail('save');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('room_allocation').update({ status }).eq('wedding_id', weddingId).eq('id', allocationId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] setAllocationStatus', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+export async function addOccupant(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const allocationId = s(fd, 'allocationId');
+  const guestId = s(fd, 'guestId');
+  if (!weddingId || !allocationId || !guestId) fail('save');
+  let ok = true;
+  let code = 'save';
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('room_occupant').insert({ wedding_id: weddingId, allocation_id: allocationId, guest_id: guestId });
+    if (error) {
+      const c = errCode(error);
+      if (c === 'SA011') code = 'full';
+      else if (c === 'SA012') code = 'guestbusy';
+      throw error;
+    }
+  } catch (e) {
+    console.error('[sangam stay] addOccupant', e);
+    ok = false;
+  }
+  if (!ok) fail(code);
+  done();
+}
+
+export async function removeOccupant(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const allocationId = s(fd, 'allocationId');
+  const guestId = s(fd, 'guestId');
+  if (!weddingId || !allocationId || !guestId) fail('save');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('room_occupant').delete().eq('wedding_id', weddingId).eq('allocation_id', allocationId).eq('guest_id', guestId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] removeOccupant', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+export async function toggleRoomService(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const roomId = s(fd, 'roomId');
+  const outOfService = !!fd.get('outOfService');
+  if (!weddingId || !roomId) fail('save');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('room').update({ out_of_service: outOfService }).eq('wedding_id', weddingId).eq('id', roomId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] toggleRoomService', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}

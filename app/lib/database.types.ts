@@ -41,6 +41,12 @@ type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; curren
 type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
 type EngagementRow = { id: string; wedding_id: string; vendor_id: string; event_instance_id: string | null; state: string; role_title: string | null; blurb: string | null; quote_amount: number | null; quote_currency: string | null; notes: string | null; created_at: string; updated_at: string };
 type GuestDietaryProfileRow = { id: string; wedding_id: string; guest_id: string; category: string; jain_strictness: string | null; no_onion_garlic: boolean; fasting_days: string[]; allergies: string | null; created_at: string };
+type HotelRow = { id: string; wedding_id: string; name: string; address: string | null; map_url: string | null; notes: string | null; created_at: string };
+type RoomRow = { id: string; wedding_id: string; hotel_id: string; label: string; room_type: string; capacity: number; floor: string | null; wing: string | null; nightly_rate: number | null; currency: string | null; out_of_service: boolean; notes: string | null };
+type RoomAllocationRow = { id: string; wedding_id: string; room_id: string; household_id: string; check_in: string | null; check_out: string | null; status: string; notes: string | null; created_at: string };
+type RoomOccupantRow = { id: string; wedding_id: string; allocation_id: string; guest_id: string };
+type RoomOccupancyRow = { wedding_id: string; hotel_id: string; room_id: string; label: string; room_type: string; capacity: number; out_of_service: boolean; allocation_id: string | null; household_id: string | null; status: string | null; occupants: number; is_occupied: boolean };
+type StaySummaryRow = { wedding_id: string; room_type: string; total_rooms: number; occupied_rooms: number; free_rooms: number; out_of_service: number };
 
 // Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
 // the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
@@ -98,11 +104,17 @@ export type Database = {
       vendor: { Row: VendorRow; Insert: Partial<VendorRow>; Update: Partial<VendorRow>; Relationships: [] };
       engagement: { Row: EngagementRow; Insert: Partial<EngagementRow>; Update: Partial<EngagementRow>; Relationships: [] };
       guest_dietary_profile: { Row: GuestDietaryProfileRow; Insert: Partial<GuestDietaryProfileRow>; Update: Partial<GuestDietaryProfileRow>; Relationships: [] };
+      hotel: { Row: HotelRow; Insert: Partial<HotelRow>; Update: Partial<HotelRow>; Relationships: [] };
+      room: { Row: RoomRow; Insert: Partial<RoomRow>; Update: Partial<RoomRow>; Relationships: [] };
+      room_allocation: { Row: RoomAllocationRow; Insert: Partial<RoomAllocationRow>; Update: Partial<RoomAllocationRow>; Relationships: [] };
+      room_occupant: { Row: RoomOccupantRow; Insert: Partial<RoomOccupantRow>; Update: Partial<RoomOccupantRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
       caterer_report: { Row: CatererReportRow; Relationships: [] };
       directory_entry: { Row: DirectoryEntryRow; Relationships: [] };
+      room_occupancy: { Row: RoomOccupancyRow; Relationships: [] };
+      stay_summary: { Row: StaySummaryRow; Relationships: [] };
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
       finance_net_position: { Row: FinanceNetPositionRow; Relationships: [] };
     };

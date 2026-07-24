@@ -14,6 +14,7 @@ export const OWNER_SECTIONS: NavSection[] = [
   { href: '/host', label: 'Dashboard', key: 'dashboard' },
   { href: '/host/setup', label: 'Venues & events', key: 'setup' },
   { href: '/host/manage', label: 'Guests', key: 'manage' },
+  { href: '/host/stay', label: 'Stay & travel', key: 'stay' },
   { href: '/host/groups', label: 'Families & admins', key: 'groups' },
   { href: '/host/vendors', label: 'Vendors', key: 'vendors' },
   { href: '/host/finance', label: 'Finance', key: 'finance' },
