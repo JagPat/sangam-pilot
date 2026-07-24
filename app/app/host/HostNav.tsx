@@ -24,6 +24,7 @@ export function HostNavView({
           <span className="sg-nav__sub">Organizer console</span>
         </a>
         <div className="sg-nav__who">
+          <a href="/schedule" className="sg-switch">My schedule →</a>
           {email ? (
             <span className="sg-nav__id">
               {roleLabel ? <b>{roleLabel}</b> : null}

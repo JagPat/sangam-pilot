@@ -1,17 +1,42 @@
-// Shared top bar for the guest-facing app (schedule + directory). Keeps the two screens on one
-// consistent header with a light nav. Sign-out posts to the existing /auth/signout route.
+import { pageClient } from '@/lib/supabase/pageClient';
+import { getOrganizerNav } from '@/lib/data/nav';
 
-export function GuestTopbar({ current }: { current: 'schedule' | 'directory' }) {
+// Shared top bar for the guest-facing app (schedule + directory). It also carries the VIEW SWITCH: an
+// account that is a wedding owner (the event manager) is usually also a guest, so from their schedule they
+// need a way over to the organizer console. GuestTopbar (async) detects that and shows the switch;
+// GuestTopbarView is the presentational half so it can be previewed with fixtures.
+
+export function GuestTopbarView({
+  current,
+  showConsole,
+}: {
+  current: 'schedule' | 'directory';
+  showConsole: boolean;
+}) {
   return (
     <div className="sg-topbar">
-      <span className="sg-brand">Sangam</span>
+      <a href="/schedule" className="sg-brand" style={{ textDecoration: 'none' }}>Sangam</a>
       <nav className="sg-guestnav">
-        <a href="/schedule" className={current === 'schedule' ? 'is-current' : ''}>Schedule</a>
-        <a href="/directory" className={current === 'directory' ? 'is-current' : ''}>Guests</a>
+        <a href="/schedule" className={current === 'schedule' ? 'is-current' : undefined}>Schedule</a>
+        <a href="/directory" className={current === 'directory' ? 'is-current' : undefined}>Guests</a>
+        {showConsole ? (
+          <a href="/host" className="sg-switch">Organizer console →</a>
+        ) : null}
       </nav>
       <form action="/auth/signout" method="post">
         <button type="submit" className="sg-signout">Sign out</button>
       </form>
     </div>
   );
+}
+
+export async function GuestTopbar({ current }: { current: 'schedule' | 'directory' }) {
+  let showConsole = false;
+  try {
+    const nav = await getOrganizerNav(await pageClient());
+    showConsole = nav.sections.length > 0; // owner → has console sections
+  } catch {
+    /* nav switch is best-effort; never break the guest header over it */
+  }
+  return <GuestTopbarView current={current} showConsole={showConsole} />;
 }

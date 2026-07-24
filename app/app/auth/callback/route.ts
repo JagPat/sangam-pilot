@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import { serverClientRW } from '@/lib/supabase/serverClient';
+import type { AppSupabaseClient } from '@/lib/supabase/clients';
 import { linkSignedInAccount } from '@/lib/auth/link';
+import { getOrganizerNav } from '@/lib/data/nav';
 
 // Landing point for the magic-link / OTP email. Establishes the session cookies, then forwards to `next`.
 // Supports both the PKCE `code` flow (@supabase/ssr default) and the `token_hash`+`type` email template.
@@ -19,7 +21,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // `next` must be a same-origin absolute path — reject `//evil.com`, `https://…`, etc. (open-redirect guard;
   // it is resolved as a relative Location below, where a protocol-relative value would escape the origin).
-  const rawNext = url.searchParams.get('next') ?? '/schedule';
+  const nextParam = url.searchParams.get('next');
+  const rawNext = nextParam ?? '/schedule';
   const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/schedule';
 
   const supabase = await serverClientRW();
@@ -39,5 +42,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { data: userData } = await supabase.auth.getUser();
   if (userData.user) await linkSignedInAccount(userData.user.id);
 
-  return redirectTo(next);
+  // Default landing: a wedding owner (event manager) is usually also a guest, so without an explicit
+  // destination send them to the organizer console rather than their own guest schedule. Best-effort —
+  // never blocks sign-in; an explicit `next` (e.g. a deep link into an event) always wins.
+  let dest = next;
+  if (!nextParam) {
+    try {
+      const nav = await getOrganizerNav(supabase as unknown as AppSupabaseClient);
+      if (nav.sections.length > 0) dest = '/host';
+    } catch {
+      /* fall back to the default guest landing */
+    }
+  }
+
+  return redirectTo(dest);
 }

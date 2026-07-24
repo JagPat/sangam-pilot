@@ -222,6 +222,10 @@ body {
 .sg-nav__tabs a.is-active { color: var(--maroon); font-weight: 600; background: var(--paper); border-color: var(--gold); box-shadow: var(--shadow); }
 .sg-nav__note { padding: 4px 0 12px; font-size: 13px; color: var(--ink-2); }
 
+/* view switch (guest schedule <-> organizer console) — a deliberately distinct gold pill */
+.sg-switch, .sg-guestnav a.sg-switch { font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--maroon); text-decoration: none; border: 1px solid var(--gold); background: var(--gold-soft); border-radius: 999px; padding: 8px 14px; white-space: nowrap; transition: background .15s, color .15s; }
+.sg-switch:hover, .sg-guestnav a.sg-switch:hover { background: var(--gold); color: #fff; }
+
 .sg-pagehead { margin-bottom: 20px; }
 .sg-pagehead h1 { font-family: var(--font-serif); font-weight: 600; font-size: 32px; line-height: 1.1; margin: 0 0 4px; color: var(--ink); }
 .sg-pagehead p { margin: 0; color: var(--ink-2); font-size: 14.5px; max-width: 72ch; }
