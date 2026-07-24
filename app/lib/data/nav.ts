@@ -44,6 +44,7 @@ export async function getOrganizerNav(db: AppSupabaseClient): Promise<OrganizerN
       email, roleLabel: 'Family admin',
       sections: [
         { href: '/host/manage', label: 'Guests', key: 'manage' },
+        { href: '/host/events', label: 'Events', key: 'events' },
         { href: '/host/stay-overview', label: 'Stay & travel', key: 'stay-overview' },
       ],
     };

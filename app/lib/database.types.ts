@@ -192,6 +192,22 @@ export type Database = {
         Args: { p_wedding: string; p_guest: string };
         Returns: undefined;
       };
+      // Family-admin: create an event hosted by the caller's own side (0021).
+      group_create_event: {
+        Args: {
+          p_wedding: string; p_host_group: string; p_name: string; p_type: string | null; p_venue: string | null; p_wall: string; p_tz: string | null;
+          p_dress?: string | null; p_muhurat_wall?: string | null; p_tithi?: string | null; p_choghadiya?: string | null; p_stream?: string | null;
+        };
+        Returns: string;
+      };
+      // Family-admin: edit/cancel an event the caller's side hosts (0021).
+      group_update_event: {
+        Args: {
+          p_wedding: string; p_instance: string; p_name: string | null; p_type: string | null; p_venue: string | null; p_wall: string | null; p_tz: string | null; p_cancelled: boolean;
+          p_dress?: string | null; p_muhurat_wall?: string | null; p_tithi?: string | null; p_choghadiya?: string | null; p_stream?: string | null;
+        };
+        Returns: undefined;
+      };
       // Owner-only: edit/cancel an existing event.
       owner_update_event: {
         Args: {
