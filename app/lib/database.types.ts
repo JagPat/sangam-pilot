@@ -48,6 +48,8 @@ type RoomOccupantRow = { id: string; wedding_id: string; allocation_id: string; 
 type StayRequestRow = { id: string; wedding_id: string; household_id: string; status: string; party_size: number | null; nights: number | null; arrive_on: string | null; depart_on: string | null; preferred_type: string | null; accessibility: string | null; notes: string | null; created_at: string; updated_at: string };
 type TravelDetailRow = { id: string; wedding_id: string; guest_id: string; direction: string; mode: string | null; at_instant: string | null; carrier: string | null; number: string | null; from_place: string | null; to_place: string | null; arranged_by: string; needs_pickup: boolean; pickup_status: string; luggage_note: string | null; updated_at: string };
 type MyStayRow = { allocation_id: string; wedding_id: string; room_label: string; room_type: string; capacity: number; hotel_name: string; check_in: string | null; check_out: string | null; status: string; roommates: string[] };
+type ServiceRow = { id: string; wedding_id: string; name: string; description: string | null; category: string | null; billing: string; price_cents: number; currency: string; unit_label: string | null; included_qty: number | null; scope: string; settle_hint: string; capacity: number | null; active: boolean; sort_order: number; created_at: string; updated_at: string };
+type ServiceRequestRow = { id: string; wedding_id: string; service_id: string; household_id: string; guest_id: string | null; qty: number; status: string; settle: string; notes: string | null; created_at: string; updated_at: string };
 type RoomOccupancyRow = { wedding_id: string; hotel_id: string; room_id: string; label: string; room_type: string; capacity: number; out_of_service: boolean; allocation_id: string | null; household_id: string | null; status: string | null; occupants: number; is_occupied: boolean };
 type StaySummaryRow = { wedding_id: string; room_type: string; total_rooms: number; occupied_rooms: number; free_rooms: number; out_of_service: number };
 
@@ -113,6 +115,8 @@ export type Database = {
       room_occupant: { Row: RoomOccupantRow; Insert: Partial<RoomOccupantRow>; Update: Partial<RoomOccupantRow>; Relationships: [] };
       stay_request: { Row: StayRequestRow; Insert: Partial<StayRequestRow>; Update: Partial<StayRequestRow>; Relationships: [] };
       travel_detail: { Row: TravelDetailRow; Insert: Partial<TravelDetailRow>; Update: Partial<TravelDetailRow>; Relationships: [] };
+      service: { Row: ServiceRow; Insert: Partial<ServiceRow>; Update: Partial<ServiceRow>; Relationships: [] };
+      service_request: { Row: ServiceRequestRow; Insert: Partial<ServiceRequestRow>; Update: Partial<ServiceRequestRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };

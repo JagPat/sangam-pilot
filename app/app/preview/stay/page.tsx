@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import { StayWeddingView } from '../../host/stay/StayView';
+import { ServicesConsoleView } from '../../host/stay/ServicesConsole';
 import { HostNavView } from '../../host/HostNav';
 import { OWNER_SECTIONS } from '@/lib/data/nav';
 import type { StayWedding } from '@/lib/data/stay';
+import type { ConsoleServicesWedding } from '@/lib/data/services';
 
 // DEV-ONLY UI preview (no auth, no DB). Gated by PREVIEW_FIXTURES=1 so it 404s in prod.
 export const dynamic = 'force-dynamic';
@@ -40,6 +42,21 @@ const FIX: StayWedding = {
   ],
 };
 
+const SVC_FIX: ConsoleServicesWedding = {
+  weddingId: 'w1', title: 'Patel · Shah',
+  services: [
+    { id: 's1', name: 'Welcome hamper', description: 'Sweets & travel essentials', category: null, billing: 'included', priceCents: 45000, currency: 'INR', unitLabel: 'per room', includedQty: null, scope: 'per_household', settleHint: 'front_desk', active: true, requestCount: 12 },
+    { id: 's2', name: 'Airport pickup', description: 'Shared coach from the airport', category: 'transport', billing: 'allowance', priceCents: 150000, currency: 'INR', unitLabel: 'per car', includedQty: 1, scope: 'per_household', settleHint: 'front_desk', active: true, requestCount: 6 },
+    { id: 's3', name: 'Spa treatment', description: '60-min signature massage', category: 'wellness', billing: 'guest_paid', priceCents: 250000, currency: 'INR', unitLabel: 'per treatment', includedQty: null, scope: 'per_person', settleHint: 'hotel_folio', active: true, requestCount: 3 },
+  ],
+  queue: [
+    { id: 'r2', serviceName: 'Spa treatment', billing: 'guest_paid', scope: 'per_person', who: 'Priya Shah', guestId: 'g1', householdId: 'hh1', qty: 2, status: 'requested', settle: 'due', notes: 'Prefer an evening slot', chargeCents: 500000, currency: 'INR', settleHint: 'hotel_folio' },
+    { id: 'r3', serviceName: 'Airport pickup', billing: 'allowance', scope: 'per_household', who: 'Mehta Household', guestId: null, householdId: 'hh2', qty: 2, status: 'confirmed', settle: 'due', notes: null, chargeCents: 150000, currency: 'INR', settleHint: 'front_desk' },
+    { id: 'r1', serviceName: 'Welcome hamper', billing: 'included', scope: 'per_household', who: 'Shah Household', guestId: null, householdId: 'hh1', qty: 1, status: 'delivered', settle: 'none', notes: null, chargeCents: 0, currency: 'INR', settleHint: 'front_desk' },
+  ],
+  totals: { hostCostCents: 540000, guestChargesCents: 650000, outstanding: 2, currency: 'INR' },
+};
+
 export default function PreviewStay() {
   if (process.env.PREVIEW_FIXTURES !== '1') notFound();
   return (
@@ -47,6 +64,7 @@ export default function PreviewStay() {
       <div className="sg-host-shell">
         <HostNavView current="stay" email="jagrutpatel@gmail.com" roleLabel="Event manager" sections={OWNER_SECTIONS} />
         <StayWeddingView w={FIX} />
+        <ServicesConsoleView s={SVC_FIX} />
       </div>
     </main>
   );

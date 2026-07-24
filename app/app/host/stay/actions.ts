@@ -225,6 +225,90 @@ export async function setStayRequestStatus(fd: FormData): Promise<void> {
   done();
 }
 
+// ---------- services (layer 3) ----------
+
+// Create or edit a catalogue item. Price is entered in rupees and stored as minor units (paise).
+export async function saveService(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const serviceId = s(fd, 'serviceId');
+  const name = s(fd, 'name');
+  const description = s(fd, 'description');
+  const category = s(fd, 'category');
+  const billing = s(fd, 'billing') || 'guest_paid';
+  const scope = s(fd, 'scope') || 'per_person';
+  const settleHint = s(fd, 'settleHint') || 'front_desk';
+  const unitLabel = s(fd, 'unitLabel');
+  const priceRaw = parseFloat(s(fd, 'price'));
+  const priceCents = Number.isFinite(priceRaw) && priceRaw > 0 ? Math.round(priceRaw * 100) : 0;
+  const incRaw = parseInt(s(fd, 'includedQty'), 10);
+  const includedQty = billing === 'allowance' ? (Number.isFinite(incRaw) && incRaw > 0 ? incRaw : null) : null;
+  if (!weddingId || !name) fail('name');
+  if (billing === 'allowance' && includedQty === null) fail('allowanceqty');
+  let ok = true;
+  let code = 'save';
+  const row = {
+    name, description: description || null, category: category || null, billing, scope, settle_hint: settleHint,
+    unit_label: unitLabel || null, price_cents: priceCents, included_qty: includedQty,
+  };
+  try {
+    const app = (await serverClientRW()).schema('app');
+    if (serviceId) {
+      const { error } = await app.from('service').update({ ...row, updated_at: new Date().toISOString() }).eq('wedding_id', weddingId).eq('id', serviceId);
+      if (error) throw error;
+    } else {
+      const { error } = await app.from('service').insert({ wedding_id: weddingId, ...row });
+      if (error) throw error;
+    }
+  } catch (e) {
+    if (errCode(e) === '23514') code = 'allowanceqty';
+    console.error('[sangam stay] saveService', e);
+    ok = false;
+  }
+  if (!ok) fail(code);
+  done();
+}
+
+export async function setServiceActive(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const serviceId = s(fd, 'serviceId');
+  const active = !!fd.get('active');
+  if (!weddingId || !serviceId) fail('save');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('service').update({ active, updated_at: new Date().toISOString() }).eq('wedding_id', weddingId).eq('id', serviceId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] setServiceActive', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+// Owner moves a request along (confirm / deliver / decline) and/or records the guest-paid settlement.
+export async function setServiceRequestState(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const requestId = s(fd, 'requestId');
+  const status = s(fd, 'status');
+  const settle = s(fd, 'settle');
+  if (!weddingId || !requestId || (!status && !settle)) fail('save');
+  const patch: { status?: string; settle?: string; updated_at: string } = { updated_at: new Date().toISOString() };
+  if (status) patch.status = status;
+  if (settle) patch.settle = settle;
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.from('service_request').update(patch).eq('wedding_id', weddingId).eq('id', requestId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] setServiceRequestState', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
 export async function toggleRoomService(fd: FormData): Promise<void> {
   const weddingId = s(fd, 'weddingId');
   const roomId = s(fd, 'roomId');

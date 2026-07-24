@@ -1,8 +1,10 @@
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getMyStay, type MyStayData } from '@/lib/data/mystay';
+import { getGuestServices, type GuestServicesData } from '@/lib/data/services';
 import { GuestTopbar } from '../GuestTopbar';
 import { MyStayView } from './MyStayView';
+import { MyServicesView } from './MyServicesView';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the session + the guest's own stay/travel rows.
 
@@ -40,6 +42,13 @@ export default async function StayPage({ searchParams }: { searchParams: Promise
     );
   }
 
+  let services: GuestServicesData | null = null;
+  try {
+    services = await getGuestServices(db);
+  } catch {
+    /* services are best-effort; never break the stay page over them */
+  }
+
   return (
     <Shell>
       <GuestTopbar current="stay" />
@@ -59,6 +68,8 @@ export default async function StayPage({ searchParams }: { searchParams: Promise
       {banner ? <div className={'sg-banner ' + (banner.kind === 'ok' ? 'is-ok' : 'is-err')}>{banner.text}</div> : null}
 
       <MyStayView data={data} />
+
+      {services ? <MyServicesView data={services} /> : null}
 
       <div className="sg-foot">Sangam · two families, one celebration</div>
     </Shell>

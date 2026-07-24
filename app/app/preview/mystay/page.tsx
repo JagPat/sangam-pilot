@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
 import { MyStayView } from '../../stay/MyStayView';
+import { MyServicesView } from '../../stay/MyServicesView';
 import { GuestTopbarView } from '../../GuestTopbar';
 import type { MyStayData } from '@/lib/data/mystay';
+import type { GuestServicesData } from '@/lib/data/services';
 
 // DEV-ONLY UI preview (no auth, no DB). Gated by PREVIEW_FIXTURES=1 so it 404s in prod.
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,17 @@ const FIX: MyStayData = {
   ],
 };
 
+const SVC_FIX: GuestServicesData = {
+  households: [{ householdId: 'hh1', householdName: 'Shah Household', guests: [{ guestId: 'g1', guestName: 'Priya' }, { guestId: 'g2', guestName: 'Nikhil' }] }],
+  included: [
+    { id: 's1', weddingId: 'w1', name: 'Welcome hamper', description: 'Sweets & travel essentials waiting in your room', category: null, billing: 'included', priceCents: 0, currency: 'INR', unitLabel: null, includedQty: null, scope: 'per_household', settleHint: 'front_desk', bookings: [{ id: 'r1', guestId: null, householdId: 'hh1', qty: 1, status: 'confirmed', settle: 'none', notes: null, chargeCents: 0 }] },
+    { id: 's2', weddingId: 'w1', name: 'Airport pickup', description: 'Shared coach from the airport', category: 'transport', billing: 'allowance', priceCents: 150000, currency: 'INR', unitLabel: 'per car', includedQty: 1, scope: 'per_household', settleHint: 'front_desk', bookings: [] },
+  ],
+  paid: [
+    { id: 's3', weddingId: 'w1', name: 'Spa treatment', description: '60-minute signature massage at the hotel spa', category: 'wellness', billing: 'guest_paid', priceCents: 250000, currency: 'INR', unitLabel: 'per treatment', includedQty: null, scope: 'per_person', settleHint: 'hotel_folio', bookings: [{ id: 'r2', guestId: 'g1', householdId: 'hh1', qty: 2, status: 'requested', settle: 'due', notes: null, chargeCents: 500000 }] },
+  ],
+};
+
 export default function PreviewMyStay() {
   if (process.env.PREVIEW_FIXTURES !== '1') notFound();
   return (
@@ -43,6 +56,7 @@ export default function PreviewMyStay() {
         </header>
         <div className="sg-ornament"><span /><b>✦</b><span /></div>
         <MyStayView data={FIX} />
+        <MyServicesView data={SVC_FIX} />
         <div className="sg-foot">Sangam · two families, one celebration</div>
       </div>
     </main>

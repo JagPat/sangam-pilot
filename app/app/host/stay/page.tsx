@@ -1,7 +1,9 @@
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getStayData, type StayWedding } from '@/lib/data/stay';
+import { getConsoleServices, type ConsoleServicesWedding } from '@/lib/data/services';
 import { StayWeddingView } from './StayView';
+import { ServicesConsoleView } from './ServicesConsole';
 import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +16,7 @@ const MESSAGES: Record<string, { kind: 'ok' | 'err'; text: string }> = {
   occupied: { kind: 'err', text: 'That room is already taken by another household.' },
   full: { kind: 'err', text: 'That room is already full.' },
   guestbusy: { kind: 'err', text: 'That guest is already a roommate in another room.' },
+  allowanceqty: { kind: 'err', text: 'An “included up to a limit” service needs a free quantity greater than zero.' },
   save: { kind: 'err', text: "Couldn't save — please try again." },
 };
 
@@ -32,6 +35,14 @@ export default async function StayPage({ searchParams }: { searchParams: Promise
     );
   }
 
+  let services: ConsoleServicesWedding[] = [];
+  try {
+    services = await getConsoleServices(db);
+  } catch {
+    /* services are best-effort; the rest of the console still renders */
+  }
+  const servicesByWedding = new Map(services.map((x) => [x.weddingId, x]));
+
   return (
     <main className="sg-host">
       <div className="sg-host-shell">
@@ -40,7 +51,15 @@ export default async function StayPage({ searchParams }: { searchParams: Promise
         {weddings.length === 0 ? (
           <div className="sg-pagehead"><h1>Stay &amp; Travel</h1><p>Your account isn’t set as the event manager (wedding owner) for any wedding yet, so there’s nothing to manage here.</p></div>
         ) : (
-          weddings.map((w) => <StayWeddingView key={w.weddingId} w={w} />)
+          weddings.map((w) => {
+            const svc = servicesByWedding.get(w.weddingId);
+            return (
+              <div key={w.weddingId}>
+                <StayWeddingView w={w} />
+                {svc ? <ServicesConsoleView s={svc} /> : null}
+              </div>
+            );
+          })
         )}
       </div>
     </main>
