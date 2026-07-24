@@ -1,11 +1,19 @@
-import { ROOM_TYPES, type StayWedding, type StayRoom } from '@/lib/data/stay';
-import { addHotel, addRooms, allocateHousehold, setAllocationStatus, addOccupant, removeOccupant } from './actions';
+import { ROOM_TYPES, type StayWedding, type StayRoom, type StayArrival, type StayWaitItem } from '@/lib/data/stay';
+import { addHotel, addRooms, allocateHousehold, setAllocationStatus, addOccupant, removeOccupant, setPickupStatus, setStayRequestStatus } from './actions';
 
 // Presentational console for Stay & Travel (used by /host/stay and the fixture preview). Server-action
 // forms are wired here; the route page supplies the data.
 
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(ROOM_TYPES.map((t) => [t.value, t.label]));
 const STATUS_LABEL: Record<string, string> = { held: 'Held', confirmed: 'Confirmed', checked_in: 'Checked in', checked_out: 'Checked out' };
+const MODE_LABEL: Record<string, string> = { flight: 'Flight', train: 'Train', car: 'Car', bus: 'Bus', self: 'Self' };
+const WAIT_LABEL: Record<string, string> = { needs_room: 'Needs a room', waitlisted: 'Waitlisted' };
+
+function fmtWhen(iso: string | null): string {
+  if (!iso) return '—';
+  const s = iso.slice(0, 16); // YYYY-MM-DDTHH:MM (stored wall-clock)
+  return s.length >= 16 ? `${s.slice(0, 10)} · ${s.slice(11, 16)}` : s.slice(0, 10);
+}
 
 function OccupancyTiles({ w }: { w: StayWedding }) {
   return (
@@ -15,6 +23,8 @@ function OccupancyTiles({ w }: { w: StayWedding }) {
         <div className="sg-tile"><div className="sg-tile__num">{w.totals.occupied}</div><div className="sg-tile__label">Occupied</div></div>
         <div className="sg-tile"><div className="sg-tile__num">{w.totals.free}</div><div className="sg-tile__label">Free</div></div>
         <div className="sg-tile"><div className="sg-tile__num">{w.totals.rooms ? Math.round((w.totals.occupied / w.totals.rooms) * 100) : 0}%</div><div className="sg-tile__label">Filled</div></div>
+        <div className="sg-tile"><div className="sg-tile__num">{w.totals.waiting}</div><div className="sg-tile__label">Waiting</div></div>
+        <div className="sg-tile"><div className="sg-tile__num">{w.totals.pickups}</div><div className="sg-tile__label">Pickups due</div></div>
       </div>
       {w.summary.length ? (
         <div className="sg-tablewrap">
@@ -110,6 +120,103 @@ function RoomCard({ w, room }: { w: StayWedding; room: StayRoom }) {
   );
 }
 
+function PickupCell({ w, a }: { w: StayWedding; a: StayArrival }) {
+  if (!a.needsPickup) return <span className="sg-muted">Self</span>;
+  const st = a.pickupStatus === 'none' ? 'requested' : a.pickupStatus;
+  const badge = st === 'done' ? 'is-on' : st === 'assigned' ? 'is-on' : 'is-wait';
+  const label = st === 'done' ? 'Picked up' : st === 'assigned' ? 'Assigned' : 'Requested';
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span className={`sg-badge ${badge}`}>{label}</span>
+      {st !== 'assigned' && st !== 'done' ? (
+        <form action={setPickupStatus} style={{ display: 'inline' }}>
+          <input type="hidden" name="weddingId" value={w.weddingId} /><input type="hidden" name="guestId" value={a.guestId} />
+          <input type="hidden" name="direction" value={a.direction} /><input type="hidden" name="pickupStatus" value="assigned" />
+          <button type="submit" className="sg-btn sg-btn--ghost sg-btn--sm">Assign</button>
+        </form>
+      ) : null}
+      {st !== 'done' ? (
+        <form action={setPickupStatus} style={{ display: 'inline' }}>
+          <input type="hidden" name="weddingId" value={w.weddingId} /><input type="hidden" name="guestId" value={a.guestId} />
+          <input type="hidden" name="direction" value={a.direction} /><input type="hidden" name="pickupStatus" value="done" />
+          <button type="submit" className="sg-btn sg-btn--green sg-btn--sm">Done</button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function ArrivalsSection({ w }: { w: StayWedding }) {
+  return (
+    <section className="sg-section">
+      <h2>Arrivals &amp; pickups</h2>
+      {w.arrivals.length === 0 ? (
+        <p className="sg-muted">No travel details yet — guests add these from their “Your stay” screen.</p>
+      ) : (
+        <div className="sg-tablewrap">
+          <table className="sg-table">
+            <thead><tr><th>Guest</th><th>Leg</th><th>When</th><th>How</th><th>From / to</th><th>Luggage</th><th>Pickup</th></tr></thead>
+            <tbody>
+              {w.arrivals.map((a) => (
+                <tr key={`${a.guestId}-${a.direction}`}>
+                  <td><strong>{a.guestName ?? '—'}</strong>{a.householdName ? <div className="sg-muted" style={{ fontSize: 12 }}>{a.householdName}</div> : null}</td>
+                  <td><span className={`sg-badge ${a.direction === 'arrival' ? 'is-on' : 'is-off'}`}>{a.direction === 'arrival' ? 'Arrival' : 'Departure'}</span></td>
+                  <td>{fmtWhen(a.atInstant)}</td>
+                  <td>{a.mode ? MODE_LABEL[a.mode] ?? a.mode : '—'}{a.carrier || a.number ? <div className="sg-muted" style={{ fontSize: 12 }}>{[a.carrier, a.number].filter(Boolean).join(' ')}</div> : null}</td>
+                  <td>{a.fromPlace ?? '—'}</td>
+                  <td>{a.luggageNote ? <span className="sg-muted" style={{ fontSize: 12 }}>{a.luggageNote}</span> : '—'}</td>
+                  <td><PickupCell w={w} a={a} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function WaitlistSection({ w }: { w: StayWedding }) {
+  return (
+    <section className="sg-section">
+      <h2>Room waitlist</h2>
+      {w.waitlist.length === 0 ? (
+        <p className="sg-muted">No one’s waiting on a room right now — households that ask for a room and haven’t been allocated appear here.</p>
+      ) : (
+        <div className="sg-tablewrap">
+          <table className="sg-table">
+            <thead><tr><th>Household</th><th>Party</th><th>Nights</th><th>Dates</th><th>Prefers</th><th>Notes</th><th></th></tr></thead>
+            <tbody>
+              {w.waitlist.map((it) => (
+                <tr key={it.householdId}>
+                  <td><strong>{it.householdName}</strong> <span className="sg-badge is-wait">{WAIT_LABEL[it.status] ?? it.status}</span></td>
+                  <td>{it.guestCount}</td>
+                  <td>{it.nights ?? '—'}</td>
+                  <td>{it.arriveOn ? `${it.arriveOn}${it.departOn ? ` → ${it.departOn}` : ''}` : '—'}</td>
+                  <td>{it.preferredType ? TYPE_LABEL[it.preferredType] ?? it.preferredType : '—'}</td>
+                  <td>{it.notes ? <span className="sg-muted" style={{ fontSize: 12 }}>{it.notes}</span> : '—'}</td>
+                  <td>
+                    <form action={setStayRequestStatus} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="hidden" name="weddingId" value={w.weddingId} /><input type="hidden" name="householdId" value={it.householdId} />
+                      <select className="sg-select" name="status" defaultValue={it.status} style={{ minWidth: 150 }}>
+                        <option value="needs_room">Needs a room</option>
+                        <option value="waitlisted">Waitlisted</option>
+                        <option value="declined">Declined</option>
+                      </select>
+                      <button type="submit" className="sg-btn sg-btn--ghost sg-btn--sm">Update</button>
+                    </form>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="sg-muted" style={{ marginTop: 8, fontSize: 13 }}>Give a waiting household a room from the rooming list below — allocating it clears them from this list automatically.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function StayWeddingView({ w }: { w: StayWedding }) {
   return (
     <>
@@ -122,6 +229,9 @@ export function StayWeddingView({ w }: { w: StayWedding }) {
         <h2>Occupancy</h2>
         {w.totals.rooms === 0 ? <p className="sg-muted">No rooms yet — add a hotel and its rooms below.</p> : <OccupancyTiles w={w} />}
       </section>
+
+      <WaitlistSection w={w} />
+      <ArrivalsSection w={w} />
 
       <section className="sg-section">
         <h2>Hotels &amp; rooms</h2>

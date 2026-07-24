@@ -45,6 +45,9 @@ type HotelRow = { id: string; wedding_id: string; name: string; address: string 
 type RoomRow = { id: string; wedding_id: string; hotel_id: string; label: string; room_type: string; capacity: number; floor: string | null; wing: string | null; nightly_rate: number | null; currency: string | null; out_of_service: boolean; notes: string | null };
 type RoomAllocationRow = { id: string; wedding_id: string; room_id: string; household_id: string; check_in: string | null; check_out: string | null; status: string; notes: string | null; created_at: string };
 type RoomOccupantRow = { id: string; wedding_id: string; allocation_id: string; guest_id: string };
+type StayRequestRow = { id: string; wedding_id: string; household_id: string; status: string; party_size: number | null; nights: number | null; arrive_on: string | null; depart_on: string | null; preferred_type: string | null; accessibility: string | null; notes: string | null; created_at: string; updated_at: string };
+type TravelDetailRow = { id: string; wedding_id: string; guest_id: string; direction: string; mode: string | null; at_instant: string | null; carrier: string | null; number: string | null; from_place: string | null; to_place: string | null; arranged_by: string; needs_pickup: boolean; pickup_status: string; luggage_note: string | null; updated_at: string };
+type MyStayRow = { allocation_id: string; wedding_id: string; room_label: string; room_type: string; capacity: number; hotel_name: string; check_in: string | null; check_out: string | null; status: string; roommates: string[] };
 type RoomOccupancyRow = { wedding_id: string; hotel_id: string; room_id: string; label: string; room_type: string; capacity: number; out_of_service: boolean; allocation_id: string | null; household_id: string | null; status: string | null; occupants: number; is_occupied: boolean };
 type StaySummaryRow = { wedding_id: string; room_type: string; total_rooms: number; occupied_rooms: number; free_rooms: number; out_of_service: number };
 
@@ -108,6 +111,8 @@ export type Database = {
       room: { Row: RoomRow; Insert: Partial<RoomRow>; Update: Partial<RoomRow>; Relationships: [] };
       room_allocation: { Row: RoomAllocationRow; Insert: Partial<RoomAllocationRow>; Update: Partial<RoomAllocationRow>; Relationships: [] };
       room_occupant: { Row: RoomOccupantRow; Insert: Partial<RoomOccupantRow>; Update: Partial<RoomOccupantRow>; Relationships: [] };
+      stay_request: { Row: StayRequestRow; Insert: Partial<StayRequestRow>; Update: Partial<StayRequestRow>; Relationships: [] };
+      travel_detail: { Row: TravelDetailRow; Insert: Partial<TravelDetailRow>; Update: Partial<TravelDetailRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
@@ -143,6 +148,11 @@ export type Database = {
       current_account_id: {
         Args: Record<string, never>;
         Returns: string | null;
+      };
+      // The signed-in guest's own room assignment(s) — definer-gated to guests the caller can act for.
+      my_stay: {
+        Args: Record<string, never>;
+        Returns: MyStayRow[];
       };
       // Service-only: bind the verified auth user to any guest whose personal email matches (returns the
       // resolved account id). Callable only via serviceCommand.

@@ -177,6 +177,54 @@ export async function removeOccupant(fd: FormData): Promise<void> {
   done();
 }
 
+// Transport desk: mark a guest's pickup as assigned / done (or back to requested) for one direction.
+export async function setPickupStatus(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  const direction = s(fd, 'direction');
+  const pickupStatus = s(fd, 'pickupStatus');
+  if (!weddingId || !guestId || (direction !== 'arrival' && direction !== 'departure') || !pickupStatus) fail('save');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app
+      .from('travel_detail')
+      .update({ pickup_status: pickupStatus })
+      .eq('wedding_id', weddingId)
+      .eq('guest_id', guestId)
+      .eq('direction', direction);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] setPickupStatus', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
+// Waitlist desk: move a household's room ask along (waitlisted / declined / back to needs_room).
+export async function setStayRequestStatus(fd: FormData): Promise<void> {
+  const weddingId = s(fd, 'weddingId');
+  const householdId = s(fd, 'householdId');
+  const status = s(fd, 'status');
+  if (!weddingId || !householdId || !status) fail('save');
+  let ok = true;
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app
+      .from('stay_request')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('wedding_id', weddingId)
+      .eq('household_id', householdId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('[sangam stay] setStayRequestStatus', e);
+    ok = false;
+  }
+  if (!ok) fail('save');
+  done();
+}
+
 export async function toggleRoomService(fd: FormData): Promise<void> {
   const weddingId = s(fd, 'weddingId');
   const roomId = s(fd, 'roomId');

@@ -10,7 +10,7 @@ export function GuestTopbarView({
   current,
   showConsole,
 }: {
-  current: 'schedule' | 'directory';
+  current: 'schedule' | 'directory' | 'stay';
   showConsole: boolean;
 }) {
   return (
@@ -18,6 +18,7 @@ export function GuestTopbarView({
       <a href="/schedule" className="sg-brand" style={{ textDecoration: 'none' }}>Sangam</a>
       <nav className="sg-guestnav">
         <a href="/schedule" className={current === 'schedule' ? 'is-current' : undefined}>Schedule</a>
+        <a href="/stay" className={current === 'stay' ? 'is-current' : undefined}>Stay</a>
         <a href="/directory" className={current === 'directory' ? 'is-current' : undefined}>Guests</a>
         {showConsole ? (
           <a href="/host" className="sg-switch">Organizer console →</a>
@@ -30,7 +31,7 @@ export function GuestTopbarView({
   );
 }
 
-export async function GuestTopbar({ current }: { current: 'schedule' | 'directory' }) {
+export async function GuestTopbar({ current }: { current: 'schedule' | 'directory' | 'stay' }) {
   let showConsole = false;
   try {
     const nav = await getOrganizerNav(await pageClient());

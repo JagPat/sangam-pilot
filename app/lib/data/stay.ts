@@ -25,10 +25,20 @@ export type StayRoom = {
 export type StayHotel = { id: string; name: string };
 export type StaySummary = { roomType: string; total: number; occupied: number; free: number };
 export type StayHousehold = { id: string; name: string; allocated: boolean; guests: StayOccupant[] };
+export type StayArrival = {
+  guestId: string; guestName: string | null; householdName: string | null; direction: string;
+  mode: string | null; atInstant: string | null; carrier: string | null; number: string | null;
+  fromPlace: string | null; arrangedBy: string; needsPickup: boolean; pickupStatus: string; luggageNote: string | null;
+};
+export type StayWaitItem = {
+  householdId: string; householdName: string; guestCount: number; status: string;
+  nights: number | null; arriveOn: string | null; departOn: string | null; preferredType: string | null; notes: string | null;
+};
 export type StayWedding = {
   weddingId: string; title: string;
   hotels: StayHotel[]; rooms: StayRoom[]; summary: StaySummary[]; households: StayHousehold[];
-  totals: { rooms: number; occupied: number; free: number };
+  arrivals: StayArrival[]; waitlist: StayWaitItem[];
+  totals: { rooms: number; occupied: number; free: number; pickups: number; waiting: number };
 };
 
 export async function getStayData(db: AppSupabaseClient): Promise<StayWedding[]> {
@@ -36,7 +46,7 @@ export async function getStayData(db: AppSupabaseClient): Promise<StayWedding[]>
   const weddingIds = await ownedWeddingIds(db);
   if (weddingIds.length === 0) return [];
 
-  const [weds, hotels, rooms, allocs, occ, households, guests, summary] = await Promise.all([
+  const [weds, hotels, rooms, allocs, occ, households, guests, summary, travel, requests] = await Promise.all([
     app.from('wedding').select('id, title').in('id', weddingIds),
     app.from('hotel').select('id, wedding_id, name').in('wedding_id', weddingIds),
     app.from('room').select('id, wedding_id, hotel_id, label, room_type, capacity, out_of_service').in('wedding_id', weddingIds),
@@ -45,10 +55,13 @@ export async function getStayData(db: AppSupabaseClient): Promise<StayWedding[]>
     app.from('household').select('id, wedding_id, name').in('wedding_id', weddingIds),
     app.from('guest').select('id, wedding_id, household_id, full_name').in('wedding_id', weddingIds),
     app.from('stay_summary').select('wedding_id, room_type, total_rooms, occupied_rooms, free_rooms').in('wedding_id', weddingIds),
+    app.from('travel_detail').select('wedding_id, guest_id, direction, mode, at_instant, carrier, number, from_place, arranged_by, needs_pickup, pickup_status, luggage_note').in('wedding_id', weddingIds),
+    app.from('stay_request').select('wedding_id, household_id, status, party_size, nights, arrive_on, depart_on, preferred_type, notes').in('wedding_id', weddingIds),
   ]);
-  for (const r of [weds, hotels, rooms, allocs, occ, households, guests, summary]) if (r.error) throw r.error;
+  for (const r of [weds, hotels, rooms, allocs, occ, households, guests, summary, travel, requests]) if (r.error) throw r.error;
 
   const guestName = new Map((guests.data ?? []).map((g) => [g.id, g.full_name ?? null]));
+  const guestHh = new Map((guests.data ?? []).map((g) => [g.id, g.household_id]));
   const hhName = new Map((households.data ?? []).map((h) => [h.id, h.name]));
 
   return (weds.data ?? []).map((w) => {
@@ -93,8 +106,36 @@ export async function getStayData(db: AppSupabaseClient): Promise<StayWedding[]>
       .filter((s) => s.wedding_id === w.id)
       .map((s) => ({ roomType: s.room_type, total: Number(s.total_rooms), occupied: Number(s.occupied_rooms), free: Number(s.free_rooms) }))
       .sort((a, b) => a.roomType.localeCompare(b.roomType));
-    const totals = summ.reduce((acc, s) => ({ rooms: acc.rooms + s.total, occupied: acc.occupied + s.occupied, free: acc.free + s.free }), { rooms: 0, occupied: 0, free: 0 });
 
-    return { weddingId: w.id, title: w.title, hotels: wHotels.map((h) => ({ id: h.id, name: h.name })), rooms: roomsOut, summary: summ, households: wHouseholds, totals };
+    const wArrivals: StayArrival[] = (travel.data ?? [])
+      .filter((t) => t.wedding_id === w.id)
+      .map((t) => ({
+        guestId: t.guest_id, guestName: guestName.get(t.guest_id) ?? null,
+        householdName: hhName.get(guestHh.get(t.guest_id) ?? '') ?? null,
+        direction: t.direction, mode: t.mode ?? null, atInstant: t.at_instant ?? null,
+        carrier: t.carrier ?? null, number: t.number ?? null, fromPlace: t.from_place ?? null,
+        arrangedBy: t.arranged_by, needsPickup: t.needs_pickup, pickupStatus: t.pickup_status, luggageNote: t.luggage_note ?? null,
+      }))
+      .sort((a, b) => (a.atInstant ?? '9999').localeCompare(b.atInstant ?? '9999'));
+
+    const guestCountByHh = new Map<string, number>();
+    for (const g of (guests.data ?? []).filter((x) => x.wedding_id === w.id)) {
+      guestCountByHh.set(g.household_id, (guestCountByHh.get(g.household_id) ?? 0) + 1);
+    }
+    const wWaitlist: StayWaitItem[] = (requests.data ?? [])
+      .filter((r) => r.wedding_id === w.id && (r.status === 'needs_room' || r.status === 'waitlisted') && !allocated.has(r.household_id))
+      .map((r) => ({
+        householdId: r.household_id, householdName: hhName.get(r.household_id) ?? '—',
+        guestCount: guestCountByHh.get(r.household_id) ?? 0, status: r.status,
+        nights: r.nights ?? null, arriveOn: r.arrive_on ?? null, departOn: r.depart_on ?? null,
+        preferredType: r.preferred_type ?? null, notes: r.notes ?? null,
+      }))
+      .sort((a, b) => a.householdName.localeCompare(b.householdName));
+
+    const base = summ.reduce((acc, s) => ({ rooms: acc.rooms + s.total, occupied: acc.occupied + s.occupied, free: acc.free + s.free }), { rooms: 0, occupied: 0, free: 0 });
+    const pickups = wArrivals.filter((a) => a.needsPickup && a.pickupStatus !== 'assigned' && a.pickupStatus !== 'done').length;
+    const totals = { ...base, pickups, waiting: wWaitlist.length };
+
+    return { weddingId: w.id, title: w.title, hotels: wHotels.map((h) => ({ id: h.id, name: h.name })), rooms: roomsOut, summary: summ, households: wHouseholds, arrivals: wArrivals, waitlist: wWaitlist, totals };
   });
 }
