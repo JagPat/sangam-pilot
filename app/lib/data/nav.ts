@@ -46,6 +46,7 @@ export async function getOrganizerNav(db: AppSupabaseClient): Promise<OrganizerN
         { href: '/host/manage', label: 'Guests', key: 'manage' },
         { href: '/host/events', label: 'Events', key: 'events' },
         { href: '/host/stay-overview', label: 'Stay & travel', key: 'stay-overview' },
+        { href: '/host/budget', label: 'Finance & vendors', key: 'budget' },
       ],
     };
   }
