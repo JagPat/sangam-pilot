@@ -18,6 +18,16 @@ function fail(code: string): never {
   redirect(`/stay?err=${encodeURIComponent(code)}`);
 }
 
+// Best-effort oversight entry so the family (and event manager) can see the guest's request in the log.
+async function logStay(action: string, summary: string, weddingId: string, household: string | null = null, guest: string | null = null): Promise<void> {
+  try {
+    const app = (await serverClientRW()).schema('app');
+    await app.rpc('log_stay_activity', { p_wedding: weddingId, p_action: action, p_summary: summary, p_household: household, p_guest: guest });
+  } catch (e) {
+    console.error('[sangam stay] logStay', e);
+  }
+}
+
 export async function setStayRequest(fd: FormData): Promise<void> {
   const weddingId = s(fd, 'weddingId');
   const householdId = s(fd, 'householdId');
@@ -49,6 +59,7 @@ export async function setStayRequest(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail('save');
+  await logStay('stay_request', `Room request: ${status}`, weddingId, householdId);
   done();
 }
 
@@ -79,6 +90,7 @@ export async function bookService(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail('save');
+  await logStay('service_request', 'Requested a service', weddingId, householdId, guestId);
   done();
 }
 
@@ -137,5 +149,6 @@ export async function saveTravel(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail('save');
+  await logStay('travel', `Travel updated (${direction})`, weddingId, null, guestId);
   done();
 }

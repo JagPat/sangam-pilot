@@ -22,6 +22,17 @@ function fail(code: string): never {
   redirect(`/host/stay?err=${encodeURIComponent(code)}`);
 }
 
+// Append an oversight entry (best-effort — a logging failure must never break the action). The DB function is
+// SECURITY DEFINER + member-guarded, so this records who did what for the families to review.
+async function logStay(action: string, summary: string, weddingId: string, household: string | null = null, guest: string | null = null): Promise<void> {
+  try {
+    const app = (await serverClientRW()).schema('app');
+    await app.rpc('log_stay_activity', { p_wedding: weddingId, p_action: action, p_summary: summary, p_household: household, p_guest: guest });
+  } catch (e) {
+    console.error('[sangam stay] logStay', e);
+  }
+}
+
 export async function addHotel(fd: FormData): Promise<void> {
   const weddingId = s(fd, 'weddingId');
   const name = s(fd, 'name');
@@ -114,6 +125,7 @@ export async function allocateHousehold(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail(code);
+  await logStay('room_allocated', 'Allocated a room to a household', weddingId, householdId);
   done();
 }
 
@@ -132,6 +144,11 @@ export async function setAllocationStatus(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail('save');
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { data } = await app.from('room_allocation').select('household_id').eq('wedding_id', weddingId).eq('id', allocationId).maybeSingle();
+    await logStay(status === 'cancelled' ? 'room_released' : 'room_status', `Room ${status === 'cancelled' ? 'released' : status}`, weddingId, data?.household_id ?? null);
+  } catch { /* best-effort */ }
   done();
 }
 
@@ -199,6 +216,7 @@ export async function setPickupStatus(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail('save');
+  await logStay('pickup', `Pickup ${pickupStatus} (${direction})`, weddingId, null, guestId);
   done();
 }
 
@@ -265,6 +283,7 @@ export async function saveService(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail(code);
+  await logStay(serviceId ? 'service_updated' : 'service_added', `Service “${name}” ${serviceId ? 'updated' : 'added'}`, weddingId);
   done();
 }
 
@@ -306,6 +325,11 @@ export async function setServiceRequestState(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail('save');
+  try {
+    const app = (await serverClientRW()).schema('app');
+    const { data } = await app.from('service_request').select('household_id, guest_id').eq('wedding_id', weddingId).eq('id', requestId).maybeSingle();
+    await logStay(settle ? 'service_settled' : 'service_request', `Service request ${settle || status}`, weddingId, data?.household_id ?? null, data?.guest_id ?? null);
+  } catch { /* best-effort */ }
   done();
 }
 

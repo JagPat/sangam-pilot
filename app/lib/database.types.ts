@@ -50,6 +50,7 @@ type TravelDetailRow = { id: string; wedding_id: string; guest_id: string; direc
 type MyStayRow = { allocation_id: string; wedding_id: string; room_label: string; room_type: string; capacity: number; hotel_name: string; check_in: string | null; check_out: string | null; status: string; roommates: string[] };
 type ServiceRow = { id: string; wedding_id: string; name: string; description: string | null; category: string | null; billing: string; price_cents: number; currency: string; unit_label: string | null; included_qty: number | null; scope: string; settle_hint: string; capacity: number | null; active: boolean; sort_order: number; created_at: string; updated_at: string };
 type ServiceRequestRow = { id: string; wedding_id: string; service_id: string; household_id: string; guest_id: string | null; qty: number; status: string; settle: string; notes: string | null; created_at: string; updated_at: string };
+type StayActivityRow = { id: string; wedding_id: string; actor_account_id: string | null; action: string; summary: string; household_id: string | null; guest_id: string | null; created_at: string };
 type RoomOccupancyRow = { wedding_id: string; hotel_id: string; room_id: string; label: string; room_type: string; capacity: number; out_of_service: boolean; allocation_id: string | null; household_id: string | null; status: string | null; occupants: number; is_occupied: boolean };
 type StaySummaryRow = { wedding_id: string; room_type: string; total_rooms: number; occupied_rooms: number; free_rooms: number; out_of_service: number };
 
@@ -117,6 +118,7 @@ export type Database = {
       travel_detail: { Row: TravelDetailRow; Insert: Partial<TravelDetailRow>; Update: Partial<TravelDetailRow>; Relationships: [] };
       service: { Row: ServiceRow; Insert: Partial<ServiceRow>; Update: Partial<ServiceRow>; Relationships: [] };
       service_request: { Row: ServiceRequestRow; Insert: Partial<ServiceRequestRow>; Update: Partial<ServiceRequestRow>; Relationships: [] };
+      stay_activity: { Row: StayActivityRow; Insert: Partial<StayActivityRow>; Update: Partial<StayActivityRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
@@ -157,6 +159,11 @@ export type Database = {
       my_stay: {
         Args: Record<string, never>;
         Returns: MyStayRow[];
+      };
+      // Append a Stay & Travel oversight entry (definer, guarded to members of the wedding). Fire-and-forget.
+      log_stay_activity: {
+        Args: { p_wedding: string; p_action: string; p_summary: string; p_household?: string | null; p_guest?: string | null };
+        Returns: undefined;
       };
       // Service-only: bind the verified auth user to any guest whose personal email matches (returns the
       // resolved account id). Callable only via serviceCommand.
