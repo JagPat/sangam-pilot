@@ -111,5 +111,44 @@ do $$ declare v_bride uuid := current_setting('ev.bride'); st text; begin
   raise notice 'OK(owner): owner restored the bride event (owner overrides side scoping)';
 end $$;
 
+-- ===== a side admin cannot mutate a function shared with another side's instance =====
+do $$ declare v_bride uuid := current_setting('ev.bride'); v_func uuid; v_shared uuid; begin
+  select event_function_id into v_func from app.event_instance where id = v_bride;
+  insert into app.event_instance(wedding_id,event_function_id,iana_timezone,arrival,scheduled_status)
+  select wedding_id, v_func, iana_timezone, arrival, 'scheduled'::app.scheduled_status
+    from app.event_instance
+   where id = v_bride
+  returning id into v_shared;
+  insert into app.event_host_group(wedding_id,event_instance_id,host_group_id)
+  values (
+    'fd000000-0000-0000-0000-000000000001',
+    v_shared,
+    'fd000000-0000-0000-0000-0000000000cf'
+  );
+  perform set_config('ev.shared', v_shared::text, false);
+end $$;
+
+select set_config('request.jwt.claims', json_build_object('sub','fd110000-0000-0000-0000-0000000000b1')::text, true);
+do $$ declare v_bride uuid := current_setting('ev.bride'); nm text; begin
+  begin
+    perform app.group_update_event(
+      'fd000000-0000-0000-0000-000000000001',
+      v_bride,
+      'Bride-side rewrite',
+      'other',
+      null,null,null,false
+    );
+    raise exception 'FAIL(shared-function): bride admin renamed a function also used by a groom event';
+  exception when others then
+    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm <> 'event name/type is shared with an event outside your scope' then raise; end if;
+  end;
+  select f.name into nm
+    from app.event_function f join app.event_instance i on i.event_function_id = f.id
+   where i.id = v_bride;
+  if nm <> 'Mehndi Night' then raise exception 'FAIL(shared-function): rejected update changed shared name to %', nm; end if;
+  raise notice 'OK(shared-function): side admin cannot rename/type a cross-side shared function';
+end $$;
+
 reset role;
 rollback;

@@ -17,8 +17,8 @@ sangam/
     SPEC_v0.3.2_DELTA.md, CONNECTION_MODEL.md
   supabase/
     config.toml                           # exposes the `app` schema to PostgREST; local auth config
-    migrations/0001..0007_*.sql           # identity, guests, schedule, RSVP, food, privacy, grants
-    tests/00..05_*.sql                    # role-based SQL suites (the release gate)
+    migrations/0001..0023_*.sql           # identity through operator-module hardening
+    tests/00..16_*.sql                    # role-based SQL suites (the release gate)
   app/                                    # Next.js 15 app (App Router)
     app/login, app/auth/*                 # email magic-link / OTP sign-in
     app/schedule/*                        # personalized schedule + two-step RSVP
@@ -35,7 +35,7 @@ sangam/
 ```bash
 # 1) Backend: a Supabase project (cloud) or `supabase start` (local, needs Docker)
 #    Ensure the `app` schema is exposed to PostgREST (see supabase/config.toml / DEPLOY.md).
-supabase db push                         # apply migrations 0001..0007
+supabase db push                         # apply all migrations
 
 # 2) Certify the DB (the release gate)
 DATABASE_URL="postgres://…" bash scripts/run-sql-suites.sh

@@ -3,8 +3,8 @@
 Two gates verified: the **database** (real Postgres 16 ≈ Supabase, Supabase roles + auth stub, tests run
 AS `authenticated`/`anon`) and the **app** (`npm ci` from the committed lockfile → `tsc` → `next build`).
 
-## Database — all four suites pass (real signal)
-Migrations **0001–0007** apply cleanly.
+## Database — all 16 suites pass (real signal)
+Migrations **0001–0023** apply cleanly.
 - **01_constraints** — muhurat CHECK, invitation↔instance match, no double-invite, derived attendance,
   cross-wedding isolation.
 - **02_rsvp_flow** — propose→confirm, derived counts, optimistic concurrency; both provenance dimensions
@@ -23,6 +23,11 @@ Migrations **0001–0007** apply cleanly.
   - **Owner acting for a guest derives `authority=operator`** (never `proxy`); **`audit_event` carries the
     structured `channel`/`authority` columns** (asserted, not parsed from text).
   - **Cross-actor confirmation is rejected**: a delegate proposes, the owner cannot confirm it.
+- **10–16 operator modules** — family-admin isolation, stay/rooms/travel/services, oversight logging,
+  group events, vendors and finance. The gate now actually discovers and runs these suites.
+- **14_stay_oversight** — an ordinary guest cannot forge manager activity; guest self-service entries
+  are authorized against authoritative rows and use database-derived summaries.
+- **15_group_events** — a side admin cannot rename/type a function shared by another side's instance.
 
 ## Provenance model — channel vs. authority, consistent actor (P1s fixed)
 - Two orthogonal columns everywhere (proposal / attendance / change-log / audit): **`rsvp_channel`**
@@ -50,20 +55,20 @@ Migrations **0001–0007** apply cleanly.
 
 ## App — clean `npm ci`, typecheck, build
 - `npm ci` (committed lockfile) → **0 vulnerabilities**; `npm run typecheck` → passes.
-- `npm run build` → completes, `.next/BUILD_ID` = `zrW7uDa24CROkqG16lIuE`. `/invite/[token]` is
+- `npm run build` → completes. `/invite/[token]` is
   **ƒ (Dynamic)**; a **Middleware** bundle is registered; no workspace-root warning; ESLint tooling is
   deliberately deferred to the UI phase (opted out in `next.config.mjs`).
 
-## What changed this round (v8 — the three P1s)
-1. **Cross-actor confirmation** — confirmer must equal the proposer; authority re-derived for the
-   confirmer. Adversarial delegate→owner confirm test rejects.
-2. **Structured audit provenance** — typed `channel`/`authority` columns on `audit_event` + CHECK,
-   populated on RSVP; asserted by test.
-3. **Recipient-bound exchange** — link carries a contact hash; redeem + details require a verified-contact
-   match; wrong-contact rejected without consuming.
+## What changed in the post-review hardening
+1. **Release gate discovery** — the runner executes every two-digit numbered suite, including 10–16.
+2. **Shared event functions** — side admins cannot mutate names/types used by out-of-scope instances.
+3. **Stay audit integrity** — non-owner entries are limited to authorized self-service actions, checked
+   against domain rows, and summarized by the database rather than the caller.
+4. **Co-host contract** — view-only co-hosts no longer receive family-admin navigation or write context.
+5. **Reproducible app build** — project-local PostCSS config; patched Next/sharp lockfile; zero audit issues.
 
 ## Known follow-ups / integration boundary (before enabling the exchange)
-- **Final DB gate**: run the four suites against **`supabase start`** (real auth). This sandbox uses an
+- **Final DB gate**: run all suites against **`supabase start`** (real auth). The default local/CI gate uses an
   auth stub because `supabase start` needs Docker (unavailable here) — that certification is yours.
 - **Session mint (OTP/magic-link)**: still the remaining integration. Crucially, it must send the OTP to
   the guest's **invited contact** so the verified session contact matches the link — that is what makes

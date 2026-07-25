@@ -9,16 +9,19 @@ begin;
 insert into auth.users(id,email) values
   ('fc110000-0000-0000-0000-0000000000a0','ov@ov.com'),
   ('fc110000-0000-0000-0000-0000000000b1','bride@ov.com'),
-  ('fc110000-0000-0000-0000-0000000000c1','groom@ov.com');
+  ('fc110000-0000-0000-0000-0000000000c1','groom@ov.com'),
+  ('fc110000-0000-0000-0000-0000000000d1','guest@ov.com');
 insert into app.account(id,auth_user_id,email) values
   ('fcc00000-0000-0000-0000-0000000000a0','fc110000-0000-0000-0000-0000000000a0','ov@ov.com'),
   ('fcc00000-0000-0000-0000-0000000000b1','fc110000-0000-0000-0000-0000000000b1','bride@ov.com'),
-  ('fcc00000-0000-0000-0000-0000000000c1','fc110000-0000-0000-0000-0000000000c1','groom@ov.com');
+  ('fcc00000-0000-0000-0000-0000000000c1','fc110000-0000-0000-0000-0000000000c1','groom@ov.com'),
+  ('fcc00000-0000-0000-0000-0000000000d1','fc110000-0000-0000-0000-0000000000d1','guest@ov.com');
 insert into app.wedding(id,title) values ('fc000000-0000-0000-0000-000000000001','OV Wedding');
 insert into app.wedding_membership(wedding_id,account_id,status) values
   ('fc000000-0000-0000-0000-000000000001','fcc00000-0000-0000-0000-0000000000a0','active'),
   ('fc000000-0000-0000-0000-000000000001','fcc00000-0000-0000-0000-0000000000b1','active'),
-  ('fc000000-0000-0000-0000-000000000001','fcc00000-0000-0000-0000-0000000000c1','active');
+  ('fc000000-0000-0000-0000-000000000001','fcc00000-0000-0000-0000-0000000000c1','active'),
+  ('fc000000-0000-0000-0000-000000000001','fcc00000-0000-0000-0000-0000000000d1','active');
 insert into app.host_group(id,wedding_id,kind,name) values
   ('fc000000-0000-0000-0000-0000000000bf','fc000000-0000-0000-0000-000000000001','bride_family','Bride family'),
   ('fc000000-0000-0000-0000-0000000000cf','fc000000-0000-0000-0000-000000000001','groom_family','Groom family');
@@ -32,6 +35,9 @@ insert into app.household(id,wedding_id,name,host_group_id) values
 insert into app.guest(id,wedding_id,household_id,full_name) values
   ('fc000000-0000-0000-0000-0000000000b9','fc000000-0000-0000-0000-000000000001','fc000000-0000-0000-0000-0000000000b8','Bride Guest'),
   ('fc000000-0000-0000-0000-0000000000c9','fc000000-0000-0000-0000-000000000001','fc000000-0000-0000-0000-0000000000c8','Groom Guest');
+update app.guest
+   set self_account_id = 'fcc00000-0000-0000-0000-0000000000d1'
+ where id = 'fc000000-0000-0000-0000-0000000000b9';
 
 -- ===== owner builds the stay data for BOTH sides and writes three activity entries =====
 set local role authenticated;
@@ -96,6 +102,28 @@ do $$ declare n int; begin
   select count(*) into n from app.stay_activity; if n<>2 then raise exception 'FAIL(log): bride admin sees % activity rows (expected bride + wedding-level = 2)', n; end if;
   select count(*) into n from app.stay_activity where household_id='fc000000-0000-0000-0000-0000000000c8'; if n<>0 then raise exception 'FAIL(log-leak): bride admin sees a GROOM activity entry'; end if;
   raise notice 'OK(bride-log): sees own-side + wedding-level activity, not the groom entry';
+end $$;
+
+-- ===== ordinary guests cannot forge manager/audit activity =====
+select set_config('request.jwt.claims', json_build_object('sub','fc110000-0000-0000-0000-0000000000d1')::text, true);
+do $$ declare before_n int; after_n int; begin
+  select count(*) into before_n from app.stay_activity;
+  begin
+    perform app.log_stay_activity(
+      'fc000000-0000-0000-0000-000000000001',
+      'room_allocated',
+      'Event manager allocated a presidential suite',
+      null,
+      null
+    );
+    raise exception 'FAIL(log-forgery): ordinary guest forged manager activity';
+  exception when others then
+    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm <> 'not authorized to log this stay activity' then raise; end if;
+  end;
+  select count(*) into after_n from app.stay_activity;
+  if after_n <> before_n then raise exception 'FAIL(log-forgery): rejected call still inserted activity'; end if;
+  raise notice 'OK(log-forgery): ordinary guest cannot inject manager activity';
 end $$;
 
 -- ===== groom admin: mirror-image isolation =====

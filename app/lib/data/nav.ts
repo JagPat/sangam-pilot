@@ -37,7 +37,7 @@ export async function getOrganizerNav(db: AppSupabaseClient): Promise<OrganizerN
   if (rs.has('wedding_owner')) {
     return { email, roleLabel: 'Event manager', sections: OWNER_SECTIONS };
   }
-  if (rs.has('host_group_admin') || rs.has('co_host')) {
+  if (rs.has('host_group_admin')) {
     // Family admins co-manage their side's guests (layer 1) and get a read-only stay & travel oversight view
     // for their side (layer 4). More sections light up as the scoped events/vendors layers land.
     return {
@@ -49,6 +49,9 @@ export async function getOrganizerNav(db: AppSupabaseClient): Promise<OrganizerN
         { href: '/host/budget', label: 'Finance & vendors', key: 'budget' },
       ],
     };
+  }
+  if (rs.has('co_host')) {
+    return { email, roleLabel: 'Co-host (view only)', sections: [] };
   }
   return { email, roleLabel: null, sections: [] };
 }

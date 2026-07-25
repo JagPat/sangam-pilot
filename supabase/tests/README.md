@@ -65,6 +65,12 @@ Each script prints `OK…` lines and raises loudly on any `FAIL`. A clean exit =
   owner_list_operators is owner-gated and returns emails RLS otherwise hides; the wedding_owner role can't be
   removed; an in-use family can't be deleted; anon can't execute the RPCs. (Account state is cross-checked as
   superuser, since app.account rows are self-only under RLS.)
+- **10–13** — family-admin guest scoping plus stay, travel and service authorization.
+- **14_stay_oversight.sql** — side-scoped oversight and rejection of forged manager activity from an
+  ordinary guest.
+- **15_group_events.sql** — side-scoped event writes and rejection of event-function mutations shared
+  with an out-of-scope side.
+- **16_group_vendors_finance.sql** — side-scoped vendor visibility and finance reads.
 
 Every suite runs under the single `scripts/run-sql-suites.sh` command above.
 
