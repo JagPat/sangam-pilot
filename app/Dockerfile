@@ -1,12 +1,12 @@
 # Next.js (standalone) production image. Coolify can build this directly (Dockerfile build pack), or use
 # Nixpacks auto-detection instead — either works. All Supabase calls are at runtime, so the build needs
 # only placeholder env; real SUPABASE_* values are injected as runtime env on the Coolify service.
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -16,7 +16,7 @@ ENV SUPABASE_ANON_KEY=placeholder
 ENV SUPABASE_SERVICE_ROLE_KEY=placeholder
 RUN npm run build
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
