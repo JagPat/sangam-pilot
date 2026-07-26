@@ -31,7 +31,7 @@
 - Modify `app/lib/auth/session.ts` — return a reason when a protected request has no usable session.
 - Modify `app/app/login/page.tsx` — redirect a valid existing session before rendering login controls.
 - Modify `app/app/auth/callback/route.ts` — reuse the destination policy.
-- Create `app/app/login/page.test.tsx` — authenticated/anonymous login-page behavior.
+- Create `app/lib/auth/loginDecision.ts` and `.test.ts` — authenticated/anonymous login-page decision.
 - Create `app/lib/supabase/authCookieOptions.ts` — shared persistent cookie settings.
 - Modify `app/lib/supabase/clients.ts` — apply the shared cookie settings to user clients.
 - Modify `app/lib/supabase/middleware.ts` — apply the same settings while preserving refresh propagation.
@@ -226,58 +226,35 @@ git commit -m "test: define safe post-auth routing"
 - Modify: `app/lib/auth/session.ts`
 - Create: `app/lib/auth/sessionState.ts`
 - Create: `app/lib/auth/sessionState.test.ts`
-- Create: `app/app/login/page.test.tsx`
+- Create: `app/lib/auth/loginDecision.ts`
+- Create: `app/lib/auth/loginDecision.test.ts`
 
 **Interfaces:**
 - Consumes: `getVerifiedUser()`, `pageClient()`, `getOrganizerNav()`, and `postAuthDestination()`.
 - Produces: `/login` renders only for anonymous users; authenticated users reach a safe role-aware destination;
   protected redirects distinguish `no_cookie` from `refresh_failed` without logging cookie values.
 
-- [ ] **Step 1: Write the failing login-page tests**
+- [ ] **Step 1: Write the failing login-decision tests**
 
-Create `app/app/login/page.test.tsx`:
+Create `app/lib/auth/loginDecision.test.ts`:
 
-```tsx
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+```ts
+import { describe, expect, it } from 'vitest';
+import { loginDestinationForSession } from './loginDecision';
 
-const mocks = vi.hoisted(() => ({
-  getVerifiedUser: vi.fn(),
-  getOrganizerNav: vi.fn(),
-  pageClient: vi.fn(),
-  redirect: vi.fn((path: string) => { throw new Error(`REDIRECT:${path}`); }),
-}));
+const user = { id: 'u1', email: 'guest@example.test', emailConfirmed: true };
 
-vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
-vi.mock('@/lib/auth/session', () => ({ getVerifiedUser: mocks.getVerifiedUser }));
-vi.mock('@/lib/data/nav', () => ({ getOrganizerNav: mocks.getOrganizerNav }));
-vi.mock('@/lib/supabase/pageClient', () => ({ pageClient: mocks.pageClient }));
-vi.mock('./actions', () => ({ sendMagicLink: vi.fn(), verifyCode: vi.fn() }));
-
-import LoginPage from './page';
-
-describe('LoginPage', () => {
-  beforeEach(() => {
-    mocks.pageClient.mockResolvedValue({});
-    mocks.getOrganizerNav.mockResolvedValue({ email: null, roleLabel: null, sections: [] });
+describe('loginDestinationForSession', () => {
+  it('redirects an authenticated guest without asking for another OTP', () => {
+    expect(loginDestinationForSession(user, null, [])).toBe('/schedule');
   });
 
-  it('redirects an authenticated guest without asking for another OTP', async () => {
-    mocks.getVerifiedUser.mockResolvedValue({ id: 'u1', email: 'guest@example.test', emailConfirmed: true });
-    await expect(LoginPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('REDIRECT:/schedule');
+  it('honors a safe requested destination', () => {
+    expect(loginDestinationForSession(user, '/directory', [{ href: '/host' }])).toBe('/directory');
   });
 
-  it('honors a safe requested destination for an authenticated user', async () => {
-    mocks.getVerifiedUser.mockResolvedValue({ id: 'u1', email: 'guest@example.test', emailConfirmed: true });
-    await expect(
-      LoginPage({ searchParams: Promise.resolve({ next: '/directory' }) }),
-    ).rejects.toThrow('REDIRECT:/directory');
-  });
-
-  it('renders login controls for an anonymous visitor', async () => {
-    mocks.getVerifiedUser.mockResolvedValue(null);
-    const result = await LoginPage({ searchParams: Promise.resolve({}) });
-    expect(result).toBeTruthy();
-    expect(mocks.redirect).not.toHaveBeenCalled();
+  it('renders login for an anonymous visitor', () => {
+    expect(loginDestinationForSession(null, null, [])).toBeNull();
   });
 });
 ```
@@ -288,10 +265,10 @@ Run:
 
 ```bash
 cd app
-npm test -- app/login/page.test.tsx
+npm test -- lib/auth/loginDecision.test.ts
 ```
 
-Expected: authenticated cases FAIL because the page renders instead of redirecting.
+Expected: FAIL because `./loginDecision` does not exist.
 
 - [ ] **Step 3: Add authenticated redirect before rendering the login form**
 
@@ -300,24 +277,23 @@ In `app/app/login/page.tsx`, import:
 ```ts
 import { redirect } from 'next/navigation';
 import { getVerifiedUser } from '@/lib/auth/session';
-import { postAuthDestination } from '@/lib/auth/landing';
+import { loginDestinationForSession } from '@/lib/auth/loginDecision';
 import { getOrganizerNav } from '@/lib/data/nav';
 import { pageClient } from '@/lib/supabase/pageClient';
 ```
 
-Immediately after awaiting `searchParams`, add:
+Create `app/lib/auth/loginDecision.ts` as a pure adapter around `postAuthDestination`, returning `null`
+for an anonymous user. Immediately after awaiting `searchParams`, load organizer sections only for a
+verified user, call `loginDestinationForSession()`, and redirect when it returns a destination.
 
 ```ts
 const user = await getVerifiedUser();
+let sections: { href: string }[] = [];
 if (user) {
-  let sections: { href: string }[] = [];
-  try {
-    sections = (await getOrganizerNav(await pageClient())).sections;
-  } catch {
-    // Authentication succeeded; navigation enrichment is best-effort.
-  }
-  redirect(postAuthDestination(next ?? null, sections));
+  try { sections = (await getOrganizerNav(await pageClient())).sections; } catch {}
 }
+const destination = loginDestinationForSession(user, next ?? null, sections);
+if (destination) redirect(destination);
 ```
 
 Keep the anonymous form and its copy otherwise unchanged.
@@ -427,7 +403,7 @@ Run:
 
 ```bash
 cd app
-npm test -- app/login/page.test.tsx lib/auth/landing.test.ts lib/auth/sessionState.test.ts
+npm test -- lib/auth/loginDecision.test.ts lib/auth/landing.test.ts lib/auth/sessionState.test.ts
 npm run typecheck
 SUPABASE_URL=https://build.invalid \
 SUPABASE_ANON_KEY=build-anon-key \
@@ -440,7 +416,8 @@ Expected: all commands exit 0 and `.next/BUILD_ID` exists.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add app/app/login/page.tsx app/app/login/page.test.tsx app/app/auth/callback/route.ts \
+git add app/app/login/page.tsx app/app/auth/callback/route.ts \
+  app/lib/auth/loginDecision.ts app/lib/auth/loginDecision.test.ts \
   app/lib/auth/session.ts app/lib/auth/sessionState.ts app/lib/auth/sessionState.test.ts
 git commit -m "fix: reuse valid guest sessions"
 ```
@@ -652,7 +629,7 @@ try {
 
   let browser = await chromium.launchPersistentContext(profile, { headless: true });
   let page = await browser.newPage();
-  await page.goto(`${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=magiclink`, {
+  await page.goto(`${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=email`, {
     waitUntil: 'networkidle',
   });
   assert.notEqual(new URL(page.url()).pathname, '/login', 'first sign-in returned to login');

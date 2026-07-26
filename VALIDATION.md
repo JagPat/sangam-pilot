@@ -13,6 +13,10 @@ timestamp through `20260726032455_0024_review_hardening.sql`.
   reopens the same persistent browser profile, and proves `/login` redirects without another OTP.
 - Production certification evidence must record only date, domain, browser/OS, CI URL, and pass/fail. It
   must never record the disposable email, token, cookie, or service-role key.
+- **2026-07-26 — PASS:** `https://sangam.vitan.in`, Playwright Chromium 151 on macOS arm64. The session
+  survived a complete persistent-profile browser restart and `/login` redirected without another OTP.
+  CI: <https://github.com/JagPat/sangam-pilot/actions/runs/30187842113>. Cleanup verified zero disposable
+  Auth users and zero disposable `app.account` rows.
 
 ## Database — all 16 suites pass (real signal)
 All **24 timestamped migrations** apply cleanly, including the recovered production guest-import

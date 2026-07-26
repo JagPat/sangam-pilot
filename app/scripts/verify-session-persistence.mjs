@@ -42,7 +42,7 @@ try {
 
   let browser = await chromium.launchPersistentContext(profile, { headless: true });
   let page = await browser.newPage();
-  await page.goto(`${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=magiclink`, {
+  await page.goto(`${origin}/auth/callback?token_hash=${encodeURIComponent(tokenHash)}&type=email`, {
     waitUntil: 'networkidle',
   });
   assert.notEqual(new URL(page.url()).pathname, '/login', 'first sign-in returned to login');
