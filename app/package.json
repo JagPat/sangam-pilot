@@ -7,7 +7,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:session": "node scripts/verify-session-persistence.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",
@@ -19,7 +22,9 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
-    "typescript": "^5.5.0"
+    "playwright": "^1.62.0",
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "postcss": "^8.5.10",
