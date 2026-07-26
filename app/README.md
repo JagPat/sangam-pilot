@@ -15,6 +15,9 @@ so Claude Code / Codex can build the Slice-1 screens against a solid foundation.
   authority; the account comes from a verified session, never the URL.
 - `lib/supabase/middleware.ts` + `middleware.ts` — Supabase session refresh on every request (rotates
   the auth cookie and propagates it to request + response), so read-only handlers see a fresh session.
+- `/login` checks the verified session before rendering. A returning guest with a valid session is sent
+  directly to their schedule or authorized organizer console; email verification is first-use/recovery,
+  not an every-visit requirement. Auth cookies are persistent while Supabase controls session validity.
 
 ## Invite exchange (wired — two-step, gated)
 - `app/invite/[token]/page.tsx` (GET) validates the token **without consuming it** —
@@ -46,3 +49,17 @@ Suggested route stubs:
 - Never write `app.event_attendance` directly — go through the functions.
 - Don't add fast-follow tables (outbox, bot, travel, Bridge, chandlo, assistance) until their module
   starts. Keep `supabase/tests/` green before real-guest rollout.
+
+## Persistent-session verification
+
+After deploying, certify a real browser restart with a disposable Supabase Auth user:
+
+```bash
+E2E_BASE_URL=https://sangam.vitan.in \
+SUPABASE_URL="$SUPABASE_URL" \
+SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" \
+npm run verify:session
+```
+
+The script stores no secret in the repository, prints no contact/token/cookie value, and deletes the
+disposable Auth user and `app.account` row in `finally`.

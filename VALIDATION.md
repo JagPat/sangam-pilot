@@ -5,6 +5,15 @@ Two gates verified: the **database** (local Postgres with Supabase roles + auth 
 The linked production project runs Postgres 17; its migration history is aligned byte-for-byte by
 timestamp through `20260726032455_0024_review_hardening.sql`.
 
+## Session reliability
+
+- Unit tests enforce same-origin post-auth redirects, authenticated `/login` bypass decisions, explicit
+  persistent cookie options, and refresh-cookie propagation to both request and response.
+- `npm run verify:session` is the deployed release gate: it signs in a disposable user, closes Chromium,
+  reopens the same persistent browser profile, and proves `/login` redirects without another OTP.
+- Production certification evidence must record only date, domain, browser/OS, CI URL, and pass/fail. It
+  must never record the disposable email, token, cookie, or service-role key.
+
 ## Database — all 16 suites pass (real signal)
 All **24 timestamped migrations** apply cleanly, including the recovered production guest-import
 migration and the review-hardening migration.

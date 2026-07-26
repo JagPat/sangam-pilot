@@ -98,8 +98,13 @@ DATABASE_URL="postgres://postgres:...@host:5432/postgres" bash scripts/run-sql-s
 - [ ] `app` schema is exposed to PostgREST (Step 3.2 / 3.3).
 - [ ] Auth **Site URL** and **redirect URL** exactly match the deployed domain (`…/auth/callback`).
 - [ ] SMTP sender configured (or using Supabase's built-in for pilot testing).
-- [ ] Smoke test: open the site → `/login` → enter an email that is a guest's `self_account` → click the
-      emailed link → land on `/schedule` → RSVP propose → confirm → status updates.
+- [ ] First-use smoke test: open the site → `/login` → verify the invited email once → land on `/schedule`
+      → RSVP propose → confirm → status updates.
+- [ ] Returning-guest smoke test: close the browser completely, reopen `/login`, and confirm the valid
+      session redirects to `/schedule` without asking for another email/code.
+- [ ] Automated browser-restart certification passes without printing secrets:
+      `E2E_BASE_URL=https://sangam.yourdomain.com npm run verify:session` with `SUPABASE_URL` and
+      `SUPABASE_SERVICE_ROLE_KEY` supplied from the operator environment.
 - [ ] `INVITE_EXCHANGE_ENABLED=0` (the `/invite/[token]` route stays 404 until OTP is proven).
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is set only on the server (never a `NEXT_PUBLIC_*` var, never in the
       browser).
