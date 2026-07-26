@@ -5,6 +5,10 @@ import type { AppSupabaseClient } from '../supabase/clients';
 // that has no invitations yet — unlike inferring ownership from the aggregate counts view, which is empty
 // until the first invitation exists. RLS still applies: operator_role rows are only visible to members.
 export async function ownedWeddingIds(db: AppSupabaseClient): Promise<string[]> {
+  return roleWeddingIds(db, 'wedding_owner');
+}
+
+export async function roleWeddingIds(db: AppSupabaseClient, role: string): Promise<string[]> {
   const app = db.schema('app');
 
   const { data: accId, error: eAcc } = await app.rpc('current_account_id');
@@ -15,7 +19,7 @@ export async function ownedWeddingIds(db: AppSupabaseClient): Promise<string[]> 
   const { data, error } = await app
     .from('operator_role')
     .select('wedding_id')
-    .eq('role', 'wedding_owner')
+    .eq('role', role)
     .eq('account_id', accountId);
   if (error) throw error;
 

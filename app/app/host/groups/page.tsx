@@ -1,7 +1,7 @@
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getGroupsData, type GroupsWedding, type FamilyGroup, type GroupOperator } from '@/lib/data/groups';
-import { createGroup, renameGroup, deleteGroup, assignAdmin, removeOperator } from './actions';
+import { createGroup, renameGroup, deleteGroup, assignAdmin, assignWeddingRole, removeOperator } from './actions';
 import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the owner's session + owner-scoped rows.
@@ -18,7 +18,7 @@ const ROLES: { value: string; label: string }[] = [
   { value: 'host_group_admin', label: 'Family admin' },
   { value: 'co_host', label: 'Co-host (view only)' },
 ];
-const ROLE_LABEL: Record<string, string> = { host_group_admin: 'Family admin', co_host: 'Co-host', wedding_owner: 'Owner' };
+const ROLE_LABEL: Record<string, string> = { host_group_admin: 'Family admin', co_host: 'Co-host', wedding_owner: 'Wedding administrator', event_manager: 'Event manager', finance_admin: 'Finance administrator' };
 
 const MESSAGES: Record<string, { kind: 'ok' | 'err'; text: string }> = {
   '1': { kind: 'ok', text: 'Saved.' },
@@ -48,11 +48,11 @@ function OperatorRow({ weddingId, op }: { weddingId: string; op: GroupOperator }
       <td>{ROLE_LABEL[op.role] ?? op.role}</td>
       <td><StatusBadge linked={op.linked} /></td>
       <td>
-        <form action={removeOperator}>
+        {op.role==='wedding_owner'?<span className="sg-muted">Required</span>:<form action={removeOperator}>
           <input type="hidden" name="weddingId" value={weddingId} />
           <input type="hidden" name="operatorRole" value={op.operatorRoleId} />
           <button type="submit" className="sg-btn sg-btn--danger sg-btn--sm">Remove</button>
-        </form>
+        </form>}
       </td>
     </tr>
   );
@@ -148,10 +148,18 @@ function WeddingGroups({ w }: { w: GroupsWedding }) {
           Set up the two sides of the wedding (bride’s and groom’s families) and give each a family admin. Admins can see
           their own family’s finances and scope; the finance screen groups every expense and split by these families.
         </p>
-        {w.owners.length > 0 ? (
-          <p className="sg-muted">Owner: {w.owners.map((o) => o.email ?? '—').join(', ')}</p>
-        ) : null}
+        <p>Wedding administration, event operations, and private finance are separate roles. Appointing a finance administrator does not reveal family finance to the event manager.</p>
       </div>
+
+      <section className="sg-section"><h2>Wedding-wide administrators</h2>
+        {w.owners.length?<div className="sg-tablewrap"><table className="sg-table"><thead><tr><th>Person</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>{w.owners.map((op)=><OperatorRow key={op.operatorRoleId} weddingId={w.weddingId} op={op}/>)}</tbody></table></div>:null}
+        <form action={assignWeddingRole} className="sg-formrow">
+          <input type="hidden" name="weddingId" value={w.weddingId}/>
+          <label className="sg-field"><span className="sg-label">Email</span><input className="sg-input" type="email" name="email" required placeholder="person@example.com"/></label>
+          <label className="sg-field"><span className="sg-label">Role</span><select className="sg-select" name="role"><option value="event_manager">Event manager</option><option value="finance_admin">Finance administrator</option></select></label>
+          <div className="sg-field"><span className="sg-label">&nbsp;</span><button className="sg-btn sg-btn--primary" type="submit">Appoint administrator</button></div>
+        </form>
+      </section>
 
       {w.groups.length === 0 ? (
         <div className="sg-empty">

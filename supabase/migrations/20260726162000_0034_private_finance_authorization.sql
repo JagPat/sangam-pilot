@@ -17,6 +17,11 @@ alter table app.finance_expense add constraint finance_expense_cost_unique uniqu
 alter table app.finance_expense add constraint finance_expense_cost_fk
   foreign key(wedding_id,cost_item_id) references app.finance_cost_item(wedding_id,id);
 
+create or replace function app.can_manage_finance_operations(p_wedding uuid) returns boolean
+language sql stable security definer set search_path=app,public as $$
+  select app.is_event_manager(p_wedding);
+$$;
+
 create or replace function app.finance_can_read_expense(p_wedding uuid,p_expense uuid) returns boolean
 language plpgsql stable security definer set search_path=app,public as $$
 declare v_payer uuid;

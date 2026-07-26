@@ -1,5 +1,5 @@
 import type { AppSupabaseClient } from '../supabase/clients';
-import { ownedWeddingIds } from './owner';
+import { roleWeddingIds } from './owner';
 
 // Read model for the owner-facing finance screen (/host/finance). Scoped to weddings the signed-in account
 // owns. Expenses/allocations are read under RLS (owner sees all of their wedding); the net position comes
@@ -22,7 +22,7 @@ export type FinanceWedding = {
 
 export async function getFinanceData(db: AppSupabaseClient): Promise<FinanceWedding[]> {
   const app = db.schema('app');
-  const weddingIds = await ownedWeddingIds(db);
+  const weddingIds = await roleWeddingIds(db, 'finance_admin');
   if (weddingIds.length === 0) return [];
 
   const [weds, groups, exps, allocs, nets] = await Promise.all([

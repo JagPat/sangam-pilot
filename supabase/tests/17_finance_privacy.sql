@@ -63,6 +63,10 @@ select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-00
 do $$ begin
   if app.is_finance_admin('17000000-0000-0000-0000-000000000101') or app.is_event_manager('17000000-0000-0000-0000-000000000101')
     then raise exception 'FAIL(role): wedding owner inherited finance/manager authority'; end if;
+  perform app.owner_assign_wedding_role('17000000-0000-0000-0000-000000000101','appointed@example.test','finance_admin');
+  if not exists(select 1 from app.owner_list_operators('17000000-0000-0000-0000-000000000101')
+    where email='appointed@example.test' and role='finance_admin' and host_group_id is null)
+    then raise exception 'FAIL(assign): wedding administrator could not appoint finance administrator'; end if;
 end $$;
 reset role;
 
@@ -100,6 +104,10 @@ do $$ declare v_cost uuid; v_private_cost uuid; v_status app.funding_status; v_c
   begin perform count(*) from app.finance_funding_signal;
     raise exception 'FAIL(signal-private): manager read private signal table';
   exception when insufficient_privilege then null; end;
+  begin perform app.owner_assign_wedding_role('17000000-0000-0000-0000-000000000101','intruder@example.test','finance_admin');
+    raise exception 'FAIL(assign-authz): event manager appointed a finance administrator';
+  exception when insufficient_privilege then null;
+            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
   perform app.manager_update_cost('17000000-0000-0000-0000-000000000101',v_cost,'Catering deposit','catering',275000,'INR','2026-08-02','part_paid',null,'Vendor invoice 17');
   select status into v_status from app.finance_funding_status where wedding_id='17000000-0000-0000-0000-000000000101' and currency_code='INR';
   if v_status<>'funded' then raise exception 'FAIL(side-channel): cost update changed manual funding signal'; end if;
@@ -143,18 +151,20 @@ select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-00
 do $$ begin
   if (select count(*) from app.finance_expense where wedding_id='17000000-0000-0000-0000-000000000101')<>1
     then raise exception 'FAIL(finance-admin): private expense not visible'; end if;
-  if not exists(select 1 from app.finance_expense e join app.finance_cost_item c
-      on c.wedding_id=e.wedding_id and c.id=e.cost_item_id where e.id='17000000-0000-0000-0000-000000000301')
-    then raise exception 'FAIL(migration): legacy private expense lacks operational cost twin'; end if;
+  if exists(select 1 from app.finance_cost_item where wedding_id='17000000-0000-0000-0000-000000000101')
+    then raise exception 'FAIL(finance-admin): private authority implied operational cost access'; end if;
   perform app.owner_update_expense('17000000-0000-0000-0000-000000000101','17000000-0000-0000-0000-000000000301',
     'Private family contribution revised','family',120000,'INR','2026-07-02','17000000-0000-0000-0000-000000000201',null,
     '[{"group":"17000000-0000-0000-0000-000000000201","percent":50},{"group":"17000000-0000-0000-0000-000000000202","percent":50}]'::jsonb);
+end $$;
+reset role;
+
+do $$ begin
   if not exists(select 1 from app.finance_expense e join app.finance_cost_item c
       on c.wedding_id=e.wedding_id and c.id=e.cost_item_id
       where e.id='17000000-0000-0000-0000-000000000301' and e.amount=120000 and c.amount=120000 and c.description=e.description)
     then raise exception 'FAIL(sync): finance-admin update did not synchronize operational cost'; end if;
 end $$;
-reset role;
 
 set local role anon;
 do $$ begin
