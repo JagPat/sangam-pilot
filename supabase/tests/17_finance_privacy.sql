@@ -31,6 +31,17 @@ insert into app.operator_role(wedding_id,account_id,role,host_group_id) values
   ('17000000-0000-0000-0000-000000000101','17aa0000-0000-0000-0000-000000000003','wedding_owner',null),
   ('17000000-0000-0000-0000-000000000102','17aa0000-0000-0000-0000-000000000004','event_manager',null);
 
+insert into app.host_group(id,wedding_id,kind,name) values
+  ('17000000-0000-0000-0000-000000000201','17000000-0000-0000-0000-000000000101','bride_family','Bride family'),
+  ('17000000-0000-0000-0000-000000000202','17000000-0000-0000-0000-000000000101','groom_family','Groom family');
+insert into app.finance_cost_item(id,wedding_id,description,category,amount,currency_code,due_date,payment_status,paid_at)
+values ('17000000-0000-0000-0000-000000000302','17000000-0000-0000-0000-000000000101','Private family contribution','family',100000,'INR','2026-07-01','paid','2026-07-01');
+insert into app.finance_expense(id,wedding_id,cost_item_id,description,category,amount,currency_code,paid_at,paid_by_host_group_id,created_by_account_id)
+values ('17000000-0000-0000-0000-000000000301','17000000-0000-0000-0000-000000000101','17000000-0000-0000-0000-000000000302','Private family contribution','family',100000,'INR','2026-07-01','17000000-0000-0000-0000-000000000201','17aa0000-0000-0000-0000-000000000002');
+insert into app.finance_expense_allocation(wedding_id,expense_id,responsible_host_group_id,allocation_amount) values
+  ('17000000-0000-0000-0000-000000000101','17000000-0000-0000-0000-000000000301','17000000-0000-0000-0000-000000000201',50000),
+  ('17000000-0000-0000-0000-000000000101','17000000-0000-0000-0000-000000000301','17000000-0000-0000-0000-000000000202',50000);
+
 set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000001')::text,true);
 do $$ begin
@@ -73,7 +84,7 @@ reset role;
 -- Event manager manages operational costs but cannot publish or inspect the private signal row.
 set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000001')::text,true);
-do $$ declare v_cost uuid; v_status app.funding_status; v_count int; begin
+do $$ declare v_cost uuid; v_private_cost uuid; v_status app.funding_status; v_count int; begin
   v_cost:=app.manager_add_cost('17000000-0000-0000-0000-000000000101','Catering deposit','catering',250000,'INR','2026-08-01','due',null,'Vendor invoice 17');
   select count(*) into v_count from app.finance_cost_item where id=v_cost and amount=250000 and currency_code='INR';
   if v_count<>1 then raise exception 'FAIL(manager-cost): manager could not create/read operational cost'; end if;
@@ -94,6 +105,21 @@ do $$ declare v_cost uuid; v_status app.funding_status; v_count int; begin
   if v_status<>'funded' then raise exception 'FAIL(side-channel): cost update changed manual funding signal'; end if;
   perform app.manager_cancel_cost('17000000-0000-0000-0000-000000000101',v_cost);
   if (select payment_status from app.finance_cost_item where id=v_cost)<>'cancelled' then raise exception 'FAIL(cancel): cost not cancelled'; end if;
+  if exists(select 1 from app.finance_expense where wedding_id='17000000-0000-0000-0000-000000000101')
+    then raise exception 'FAIL(private-ledger): event manager read family contribution details'; end if;
+  if exists(select 1 from app.finance_net_position where wedding_id='17000000-0000-0000-0000-000000000101')
+    then raise exception 'FAIL(private-net): event manager read family balances'; end if;
+  select id into v_private_cost from app.finance_cost_item where description='Private family contribution';
+  if v_private_cost is null then raise exception 'FAIL(operations): manager cannot see settlement operational twin'; end if;
+  begin perform app.manager_update_cost('17000000-0000-0000-0000-000000000101',v_private_cost,
+    'Private family contribution','family',90000,'INR','2026-07-01','paid','2026-07-01',null);
+    raise exception 'FAIL(private-integrity): manager changed a settled amount';
+  exception when insufficient_privilege then null;
+            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform app.manager_cancel_cost('17000000-0000-0000-0000-000000000101',v_private_cost);
+    raise exception 'FAIL(private-integrity): manager cancelled a settled cost';
+  exception when insufficient_privilege then null;
+            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
 end $$;
 reset role;
 
@@ -106,6 +132,27 @@ do $$ begin
   begin perform app.manager_add_cost('17000000-0000-0000-0000-000000000101','Sneaky','misc',1,'INR',null,'planned',null,null);
     raise exception 'FAIL(owner-cost): owner used manager RPC';
   exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  if exists(select 1 from app.finance_expense where wedding_id='17000000-0000-0000-0000-000000000101')
+    then raise exception 'FAIL(owner-private): wedding owner inherited family-finance access'; end if;
+end $$;
+reset role;
+
+-- Finance admin retains full private-ledger access and every migrated private row has an operational twin.
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000002')::text,true);
+do $$ begin
+  if (select count(*) from app.finance_expense where wedding_id='17000000-0000-0000-0000-000000000101')<>1
+    then raise exception 'FAIL(finance-admin): private expense not visible'; end if;
+  if not exists(select 1 from app.finance_expense e join app.finance_cost_item c
+      on c.wedding_id=e.wedding_id and c.id=e.cost_item_id where e.id='17000000-0000-0000-0000-000000000301')
+    then raise exception 'FAIL(migration): legacy private expense lacks operational cost twin'; end if;
+  perform app.owner_update_expense('17000000-0000-0000-0000-000000000101','17000000-0000-0000-0000-000000000301',
+    'Private family contribution revised','family',120000,'INR','2026-07-02','17000000-0000-0000-0000-000000000201',null,
+    '[{"group":"17000000-0000-0000-0000-000000000201","percent":50},{"group":"17000000-0000-0000-0000-000000000202","percent":50}]'::jsonb);
+  if not exists(select 1 from app.finance_expense e join app.finance_cost_item c
+      on c.wedding_id=e.wedding_id and c.id=e.cost_item_id
+      where e.id='17000000-0000-0000-0000-000000000301' and e.amount=120000 and c.amount=120000 and c.description=e.description)
+    then raise exception 'FAIL(sync): finance-admin update did not synchronize operational cost'; end if;
 end $$;
 reset role;
 
