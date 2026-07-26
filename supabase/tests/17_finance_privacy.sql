@@ -55,5 +55,68 @@ do $$ begin
 end $$;
 reset role;
 
+-- The status surface must be structurally incapable of returning a balance or family attribution.
+do $$ declare v_bad int; begin
+  select count(*) into v_bad from information_schema.columns
+   where table_schema='app' and table_name='finance_funding_status'
+     and column_name not in ('wedding_id','currency_code','status','updated_at');
+  if v_bad <> 0 then raise exception 'FAIL(signal-shape): manager status view exposes % extra columns',v_bad; end if;
+end $$;
+
+-- Finance admin publishes two independent manual signals.
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000002')::text,true);
+select app.finance_admin_publish_signal('17000000-0000-0000-0000-000000000101','INR','funded');
+select app.finance_admin_publish_signal('17000000-0000-0000-0000-000000000101','USD','funds_needed');
+reset role;
+
+-- Event manager manages operational costs but cannot publish or inspect the private signal row.
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000001')::text,true);
+do $$ declare v_cost uuid; v_status app.funding_status; v_count int; begin
+  v_cost:=app.manager_add_cost('17000000-0000-0000-0000-000000000101','Catering deposit','catering',250000,'INR','2026-08-01','due',null,'Vendor invoice 17');
+  select count(*) into v_count from app.finance_cost_item where id=v_cost and amount=250000 and currency_code='INR';
+  if v_count<>1 then raise exception 'FAIL(manager-cost): manager could not create/read operational cost'; end if;
+  select status into v_status from app.finance_funding_status
+   where wedding_id='17000000-0000-0000-0000-000000000101' and currency_code='INR';
+  if v_status<>'funded' then raise exception 'FAIL(signal): manager did not see INR funded'; end if;
+  if (select count(*) from app.finance_funding_status where wedding_id='17000000-0000-0000-0000-000000000101')<>2
+    then raise exception 'FAIL(signal): manager did not see separate INR/USD signals'; end if;
+  begin
+    perform app.finance_admin_publish_signal('17000000-0000-0000-0000-000000000101','INR','funds_needed');
+    raise exception 'FAIL(signal-authz): manager published funding status';
+  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  begin perform count(*) from app.finance_funding_signal;
+    raise exception 'FAIL(signal-private): manager read private signal table';
+  exception when insufficient_privilege then null; end;
+  perform app.manager_update_cost('17000000-0000-0000-0000-000000000101',v_cost,'Catering deposit','catering',275000,'INR','2026-08-02','part_paid',null,'Vendor invoice 17');
+  select status into v_status from app.finance_funding_status where wedding_id='17000000-0000-0000-0000-000000000101' and currency_code='INR';
+  if v_status<>'funded' then raise exception 'FAIL(side-channel): cost update changed manual funding signal'; end if;
+  perform app.manager_cancel_cost('17000000-0000-0000-0000-000000000101',v_cost);
+  if (select payment_status from app.finance_cost_item where id=v_cost)<>'cancelled' then raise exception 'FAIL(cancel): cost not cancelled'; end if;
+end $$;
+reset role;
+
+-- Owner-only and other-wedding actors get no operational access by implication.
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000003')::text,true);
+do $$ begin
+  if exists(select 1 from app.finance_cost_item where wedding_id='17000000-0000-0000-0000-000000000101')
+    then raise exception 'FAIL(owner-cost): wedding owner inherited manager cost access'; end if;
+  begin perform app.manager_add_cost('17000000-0000-0000-0000-000000000101','Sneaky','misc',1,'INR',null,'planned',null,null);
+    raise exception 'FAIL(owner-cost): owner used manager RPC';
+  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+end $$;
+reset role;
+
+set local role anon;
+do $$ begin
+  begin perform app.manager_add_cost('17000000-0000-0000-0000-000000000101','Anon','misc',1,'INR',null,'planned',null,null);
+    raise exception 'FAIL(anon): anon executed manager RPC';
+  exception when insufficient_privilege then null;
+            when others then if sqlerrm like 'FAIL:%' then raise; else raise exception 'FAIL(anon): wrong denial: %',sqlerrm; end if; end;
+end $$;
+reset role;
+
 select 'ALL FINANCE-PRIVACY TESTS PASSED' as result;
 rollback;
