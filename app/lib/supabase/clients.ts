@@ -7,6 +7,7 @@
 import { createServerClient, type CookieMethodsServer } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../database.types';
+import { authCookieOptions } from './authCookieOptions';
 
 const URL = process.env.SUPABASE_URL!;
 const ANON = process.env.SUPABASE_ANON_KEY!;
@@ -15,7 +16,10 @@ const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!; // server env only
 // Pass the Next.js cookie adapter (getAll/setAll) from your route/layout. Return type is inferred from
 // createServerClient (the @supabase/ssr SupabaseClient generic differs slightly from supabase-js').
 export function userClient(cookies: CookieMethodsServer) {
-  return createServerClient<Database>(URL, ANON, { cookies });
+  return createServerClient<Database>(URL, ANON, {
+    cookies,
+    cookieOptions: authCookieOptions(),
+  });
 }
 
 // Command/data-layer signature type. @supabase/ssr's createServerClient return doesn't carry supabase-js'
