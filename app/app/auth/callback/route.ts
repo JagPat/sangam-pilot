@@ -4,6 +4,7 @@ import { serverClientRW } from '@/lib/supabase/serverClient';
 import type { AppSupabaseClient } from '@/lib/supabase/clients';
 import { linkSignedInAccount } from '@/lib/auth/link';
 import { getOrganizerNav } from '@/lib/data/nav';
+import { postAuthDestination } from '@/lib/auth/landing';
 
 // Landing point for the magic-link / OTP email. Establishes the session cookies, then forwards to `next`.
 // Supports both the PKCE `code` flow (@supabase/ssr default) and the `token_hash`+`type` email template.
@@ -22,9 +23,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // `next` must be a same-origin absolute path — reject `//evil.com`, `https://…`, etc. (open-redirect guard;
   // it is resolved as a relative Location below, where a protocol-relative value would escape the origin).
   const nextParam = url.searchParams.get('next');
-  const rawNext = nextParam ?? '/schedule';
-  const next = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/schedule';
-
   const supabase = await serverClientRW();
   const redirectTo = (path: string) => new NextResponse(null, { status: 307, headers: { Location: path } });
 
@@ -45,17 +43,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Default landing: a wedding owner (event manager) is usually also a guest, so without an explicit
   // destination send them to the organizer console rather than their own guest schedule. Best-effort —
   // never blocks sign-in; an explicit `next` (e.g. a deep link into an event) always wins.
-  let dest = next;
-  if (!nextParam) {
+  let sections: { href: string }[] = [];
+  if (nextParam == null) {
     try {
-      const nav = await getOrganizerNav(supabase as unknown as AppSupabaseClient);
-      // Land on the first section this role can use: the owner's is the Dashboard (/host); a family
-      // admin's is their scoped Guests screen (/host/manage).
-      if (nav.sections.length > 0) dest = nav.sections[0].href;
+      sections = (await getOrganizerNav(supabase as unknown as AppSupabaseClient)).sections;
     } catch {
-      /* fall back to the default guest landing */
+      // Fall back to the guest schedule.
     }
   }
-
-  return redirectTo(dest);
+  return redirectTo(postAuthDestination(nextParam, sections));
 }

@@ -1,14 +1,38 @@
 import { sendMagicLink, verifyCode } from './actions';
+import { redirect } from 'next/navigation';
+import { getVerifiedUser } from '@/lib/auth/session';
+import type { SessionFailureReason } from '@/lib/auth/sessionState';
+import { loginDestinationForSession } from '@/lib/auth/loginDecision';
+import { getOrganizerNav } from '@/lib/data/nav';
+import { pageClient } from '@/lib/supabase/pageClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sent?: string; error?: string; next?: string; email?: string }>;
+  searchParams: Promise<{
+    sent?: string;
+    error?: string;
+    next?: string;
+    email?: string;
+    reason?: SessionFailureReason;
+  }>;
 }) {
-  const { sent, error, next, email } = await searchParams;
+  const { sent, error, next, email, reason } = await searchParams;
   const nextPath = next ?? '/schedule';
+
+  const user = await getVerifiedUser();
+  let sections: { href: string }[] = [];
+  if (user) {
+    try {
+      sections = (await getOrganizerNav(await pageClient())).sections;
+    } catch {
+      // Authentication succeeded; navigation enrichment is best-effort.
+    }
+  }
+  const destination = loginDestinationForSession(user, next ?? null, sections);
+  if (destination) redirect(destination);
 
   // Typed-code sign-in: robust on phones because a code (unlike a link) can't be consumed by
   // link-preview/scanner prefetch and needs no PKCE verifier cookie, so it works in any browser.
@@ -115,6 +139,11 @@ export default async function LoginPage({
         </header>
 
         <div className="sg-card">
+          {reason === 'refresh_failed' && (
+            <div className="sg-banner is-err">
+              Your saved sign-in could not be refreshed. Please verify once more on this device.
+            </div>
+          )}
           {error === 'email' && <div className="sg-banner is-err">Please enter your email address.</div>}
           {error === 'send' && (
             <div className="sg-banner is-err">We couldn&apos;t send the email just now. Please try again.</div>
