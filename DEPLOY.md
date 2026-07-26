@@ -56,9 +56,10 @@ git push -u origin main
 3. Apply the migrations (from your clone, with the Supabase CLI):
    ```bash
    supabase link --project-ref YOUR_REF
-   supabase db push          # applies supabase/migrations/0001..0007 in order
+   supabase db push          # applies pending timestamped migrations in history order
    ```
-   (No CLI? In the SQL editor, run each file in `supabase/migrations/` in numeric order.)
+   Prefer the CLI so migration history is recorded. If SQL Editor is unavoidable, run files in
+   timestamp order and reconcile the history before the next CLI deployment.
 4. Configure Auth — Authentication → URL Configuration:
    - **Site URL**: `https://sangam.yourdomain.com`
    - **Redirect URLs**: add `https://sangam.yourdomain.com/auth/callback`

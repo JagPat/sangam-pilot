@@ -17,7 +17,7 @@ sangam/
     SPEC_v0.3.2_DELTA.md, CONNECTION_MODEL.md
   supabase/
     config.toml                           # exposes the `app` schema to PostgREST; local auth config
-    migrations/0001..0023_*.sql           # identity through operator-module hardening
+    migrations/202607*_*.sql              # timestamped Supabase history (24 migrations)
     tests/00..16_*.sql                    # role-based SQL suites (the release gate)
   app/                                    # Next.js 15 app (App Router)
     app/login, app/auth/*                 # email magic-link / OTP sign-in

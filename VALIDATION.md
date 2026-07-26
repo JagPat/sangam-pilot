@@ -1,10 +1,13 @@
 # Validation
 
-Two gates verified: the **database** (real Postgres 16 ≈ Supabase, Supabase roles + auth stub, tests run
-AS `authenticated`/`anon`) and the **app** (`npm ci` from the committed lockfile → `tsc` → `next build`).
+Two gates verified: the **database** (local Postgres with Supabase roles + auth stub, tests run AS
+`authenticated`/`anon`) and the **app** (`npm ci` from the committed lockfile → `tsc` → `next build`).
+The linked production project runs Postgres 17; its migration history is aligned byte-for-byte by
+timestamp through `20260726032455_0024_review_hardening.sql`.
 
 ## Database — all 16 suites pass (real signal)
-Migrations **0001–0023** apply cleanly.
+All **24 timestamped migrations** apply cleanly, including the recovered production guest-import
+migration and the review-hardening migration.
 - **01_constraints** — muhurat CHECK, invitation↔instance match, no double-invite, derived attendance,
   cross-wedding isolation.
 - **02_rsvp_flow** — propose→confirm, derived counts, optimistic concurrency; both provenance dimensions
