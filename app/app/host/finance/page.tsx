@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getFinanceData, type FinanceWedding, type FinanceExpense } from '@/lib/data/finance';
-import { addExpense, updateExpense, deleteExpense } from './actions';
+import { addExpense, updateExpense, deleteExpense, publishFundingStatus } from './actions';
 import { HostNav } from '../HostNav';
 
 export const dynamic = 'force-dynamic';
@@ -156,9 +156,20 @@ function WeddingFinance({ w }: { w: FinanceWedding }) {
   return (
     <div style={{ marginBottom: 44 }}>
       <div className="sg-pagehead">
-        <h1>Finance · {w.title}</h1>
-        <p>Cash-basis paid expenses, split across families, with per-currency net positions. Amounts are actual payments only.</p>
+        <h1>Private finance · {w.title}</h1>
+        <p>Family contributions, responsibility splits, and settlement positions. Only finance-authorized family users can see this information.</p>
       </div>
+
+      <section className="sg-section">
+        <h2>Publish manager-safe funding status</h2>
+        <p className="sg-muted">This sends only “funded / funds needed / not assessed” to the event manager. It never exposes a balance or who contributed.</p>
+        <form action={publishFundingStatus} className="sg-formrow">
+          <input type="hidden" name="weddingId" value={w.weddingId}/>
+          <label className="sg-field"><span className="sg-label">Currency</span><select className="sg-select" name="currency"><option>INR</option><option>USD</option></select></label>
+          <label className="sg-field"><span className="sg-label">Status</span><select className="sg-select" name="status"><option value="funded">Funded</option><option value="funds_needed">Funds needed</option><option value="not_assessed">Not assessed</option></select></label>
+          <div className="sg-field"><span className="sg-label">&nbsp;</span><button className="sg-btn sg-btn--primary" type="submit">Publish status</button></div>
+        </form>
+      </section>
 
       <section className="sg-section">
         <h2>Net position by family &amp; currency</h2>
@@ -227,7 +238,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
       <main className="sg-host">
         <div className="sg-host-shell">
           <HostNav current="finance" />
-          <div className="sg-pagehead"><h1>Finance</h1></div>
+          <div className="sg-pagehead"><h1>Private finance</h1></div>
           <div className="sg-banner is-err">We couldn’t load this page right now. Please refresh in a moment.</div>
         </div>
       </main>
@@ -243,8 +254,8 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
 
         {weddings.length === 0 ? (
           <>
-            <div className="sg-pagehead"><h1>Finance</h1></div>
-            <div className="sg-empty"><p>You’re not set as an organizer for any wedding yet, so there’s nothing to track here.</p></div>
+            <div className="sg-pagehead"><h1>Private finance</h1></div>
+            <div className="sg-empty"><p>You don’t have finance-administrator access for a wedding. Wedding administration and event management do not grant access to family contributions or balances.</p></div>
           </>
         ) : (
           weddings.map((w) => <WeddingFinance key={w.weddingId} w={w} />)

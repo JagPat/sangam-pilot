@@ -35,9 +35,11 @@ type HouseholdContactRow = { id: string; wedding_id: string; household_id: strin
 type InvitationRow = { id: string; wedding_id: string; household_id: string; event_instance_id: string; status: string; rsvp_deadline_at: string | null; plus_one_allowance: number };
 type OperatorRoleRow = { id: string; wedding_id: string; account_id: string; role: string; host_group_id: string | null };
 type HostGroupRow = { id: string; wedding_id: string; kind: string; name: string };
-type FinanceExpenseRow = { id: string; wedding_id: string; description: string; category: string; amount: number; currency_code: string; paid_at: string; paid_by_host_group_id: string; created_by_account_id: string | null; note: string | null; created_at: string };
+type FinanceExpenseRow = { id: string; wedding_id: string; cost_item_id: string; description: string; category: string; amount: number; currency_code: string; paid_at: string; paid_by_host_group_id: string; created_by_account_id: string | null; note: string | null; created_at: string };
 type FinanceAllocationRow = { id: string; wedding_id: string; expense_id: string; responsible_host_group_id: string; allocation_amount: number };
 type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; currency_code: string; paid_amount: number; allocated_amount: number; net_position: number };
+type FinanceCostItemRow = { id: string; wedding_id: string; engagement_id: string | null; description: string; category: string; amount: number; currency_code: string; due_date: string | null; payment_status: string; paid_at: string | null; operational_note: string | null; created_by_account_id: string | null; updated_by_account_id: string | null; created_at: string; updated_at: string };
+type FinanceFundingStatusRow = { wedding_id: string; currency_code: string; status: string; updated_at: string };
 type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
 type EngagementRow = { id: string; wedding_id: string; vendor_id: string; event_instance_id: string | null; state: string; role_title: string | null; blurb: string | null; quote_amount: number | null; quote_currency: string | null; notes: string | null; created_at: string; updated_at: string };
 type GuestDietaryProfileRow = { id: string; wedding_id: string; guest_id: string; category: string; jain_strictness: string | null; no_onion_garlic: boolean; fasting_days: string[]; allergies: string | null; created_at: string };
@@ -108,6 +110,7 @@ export type Database = {
       host_group: { Row: HostGroupRow; Insert: Partial<HostGroupRow>; Update: Partial<HostGroupRow>; Relationships: [] };
       finance_expense: { Row: FinanceExpenseRow; Insert: Partial<FinanceExpenseRow>; Update: Partial<FinanceExpenseRow>; Relationships: [] };
       finance_expense_allocation: { Row: FinanceAllocationRow; Insert: Partial<FinanceAllocationRow>; Update: Partial<FinanceAllocationRow>; Relationships: [] };
+      finance_cost_item: { Row: FinanceCostItemRow; Insert: Partial<FinanceCostItemRow>; Update: Partial<FinanceCostItemRow>; Relationships: [] };
       vendor: { Row: VendorRow; Insert: Partial<VendorRow>; Update: Partial<VendorRow>; Relationships: [] };
       engagement: { Row: EngagementRow; Insert: Partial<EngagementRow>; Update: Partial<EngagementRow>; Relationships: [] };
       guest_dietary_profile: { Row: GuestDietaryProfileRow; Insert: Partial<GuestDietaryProfileRow>; Update: Partial<GuestDietaryProfileRow>; Relationships: [] };
@@ -129,6 +132,7 @@ export type Database = {
       stay_summary: { Row: StaySummaryRow; Relationships: [] };
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
       finance_net_position: { Row: FinanceNetPositionRow; Relationships: [] };
+      finance_funding_status: { Row: FinanceFundingStatusRow; Relationships: [] };
     };
     Functions: {
       // Recipient-bound: the verified session contact must match the invited contact.
@@ -242,6 +246,10 @@ export type Database = {
         Args: { p_wedding: string; p_expense: string };
         Returns: undefined;
       };
+      manager_add_cost: { Args: { p_wedding: string; p_description: string; p_category: string; p_amount: number; p_currency: string; p_due_date: string | null; p_payment_status: string; p_paid_at: string | null; p_note: string | null }; Returns: string };
+      manager_update_cost: { Args: { p_wedding: string; p_cost: string; p_description: string; p_category: string; p_amount: number; p_currency: string; p_due_date: string | null; p_payment_status: string; p_paid_at: string | null; p_note: string | null }; Returns: undefined };
+      manager_cancel_cost: { Args: { p_wedding: string; p_cost: string }; Returns: undefined };
+      finance_admin_publish_signal: { Args: { p_wedding: string; p_currency: string; p_status: string }; Returns: undefined };
       // Owner-only family (host_group) + family-admin management (0012).
       owner_create_host_group: {
         Args: { p_wedding: string; p_kind: string; p_name: string };
@@ -264,6 +272,7 @@ export type Database = {
         Args: { p_wedding: string; p_operator_role: string };
         Returns: undefined;
       };
+      owner_assign_wedding_role: { Args: { p_wedding:string; p_email:string; p_role:string }; Returns:string };
       // Owner-gated read: operators + their email (which account RLS otherwise hides).
       owner_list_operators: {
         Args: { p_wedding: string };

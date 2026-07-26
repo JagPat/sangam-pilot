@@ -112,3 +112,14 @@ export async function deleteExpense(fd: FormData): Promise<void> {
   if (!ok) fail('save');
   done();
 }
+
+export async function publishFundingStatus(fd: FormData): Promise<void> {
+  const weddingId=s(fd,'weddingId'),currency=s(fd,'currency'),status=s(fd,'status');
+  if(!weddingId||!currency||!['not_assessed','funded','funds_needed'].includes(status)) fail('fields');
+  try{
+    const app=(await serverClientRW()).schema('app');
+    const {error}=await app.rpc('finance_admin_publish_signal',{p_wedding:weddingId,p_currency:currency,p_status:status});
+    if(error) throw error;
+  }catch(error){ console.error('[sangam finance] publishFundingStatus',error); fail('save'); }
+  done();
+}
