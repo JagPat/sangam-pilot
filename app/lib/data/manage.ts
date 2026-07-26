@@ -1,5 +1,6 @@
 import type { AppSupabaseClient } from '../supabase/clients';
 import { getOperatorContext } from './owner';
+import { fetchAllPages } from './paging';
 
 // Read model for the organizer's guest + invitation management screen (/host/manage). Everything runs
 // under the signed-in user's own session (RLS). The OWNER sees the whole guest list; a bride/groom-side
@@ -72,24 +73,33 @@ export async function getManageData(db: AppSupabaseClient): Promise<ManageWeddin
   const weddingIds = ctx.ids;
   if (weddingIds.length === 0) return [];
 
-  const [weds, households, sides, guests, contacts, insts, funcs, igs, att, diets] = await Promise.all([
+  const [weds, households, sides, contacts, insts, funcs, diets, guestsData, igsData, attData] = await Promise.all([
     app.from('wedding').select('id, title').in('id', weddingIds),
     app.from('household').select('id, wedding_id, name, host_group_id').in('wedding_id', weddingIds),
     app.from('host_group').select('id, wedding_id, kind, name').in('wedding_id', weddingIds),
-    app.from('guest').select('id, wedding_id, household_id, full_name, self_account_id, show_in_directory').in('wedding_id', weddingIds),
     app.from('household_contact').select('wedding_id, guest_id, channel, value').in('wedding_id', weddingIds).eq('channel', 'email'),
     app.from('event_instance').select('id, wedding_id, event_function_id, iana_timezone, arrival').in('wedding_id', weddingIds),
     app.from('event_function').select('id, wedding_id, name, type').in('wedding_id', weddingIds),
-    app.from('invitation_guest').select('id, wedding_id, event_instance_id, guest_id').in('wedding_id', weddingIds),
-    app.from('event_attendance').select('invitation_guest_id, wedding_id').in('wedding_id', weddingIds),
     app.from('guest_dietary_profile').select('wedding_id, guest_id, category, jain_strictness, no_onion_garlic, allergies').in('wedding_id', weddingIds),
+    fetchAllPages(async (from, to) => {
+      const r = await app.from('guest').select('id, wedding_id, household_id, full_name, self_account_id, show_in_directory').in('wedding_id', weddingIds).order('id').range(from, to);
+      if (r.error) throw r.error; return r.data ?? [];
+    }),
+    fetchAllPages(async (from, to) => {
+      const r = await app.from('invitation_guest').select('id, wedding_id, event_instance_id, guest_id').in('wedding_id', weddingIds).order('id').range(from, to);
+      if (r.error) throw r.error; return r.data ?? [];
+    }),
+    fetchAllPages(async (from, to) => {
+      const r = await app.from('event_attendance').select('invitation_guest_id, wedding_id').in('wedding_id', weddingIds).order('id').range(from, to);
+      if (r.error) throw r.error; return r.data ?? [];
+    }),
   ]);
-  for (const r of [weds, households, sides, guests, contacts, insts, funcs, igs, att, diets]) if (r.error) throw r.error;
+  for (const r of [weds, households, sides, contacts, insts, funcs, diets]) if (r.error) throw r.error;
 
   const funcById = new Map((funcs.data ?? []).map((f) => [f.id, f]));
   const emailByGuest = new Map<string, string>();
   for (const c of contacts.data ?? []) if (c.guest_id && !emailByGuest.has(c.guest_id)) emailByGuest.set(c.guest_id, c.value);
-  const respondedIg = new Set((att.data ?? []).map((a) => a.invitation_guest_id));
+  const respondedIg = new Set(attData.map((a) => a.invitation_guest_id));
   const dietByGuest = new Map((diets.data ?? []).map((d) => [d.guest_id, d]));
 
   return (weds.data ?? []).map((w) => {
@@ -117,15 +127,16 @@ export async function getManageData(db: AppSupabaseClient): Promise<ManageWeddin
       })
       .sort((a, b) => (a.whenInstant ?? '').localeCompare(b.whenInstant ?? ''));
 
-    const wIgs = (igs.data ?? []).filter((ig) => ig.wedding_id === w.id);
+    const wIgs = igsData.filter((ig) => ig.wedding_id === w.id);
+    const invitationByGuestEvent = new Map(wIgs.map((ig) => [`${ig.guest_id}:${ig.event_instance_id}`, ig]));
 
-    const guestsOut: ManageGuest[] = (guests.data ?? [])
+    const guestsOut: ManageGuest[] = guestsData
       .filter((g) => g.wedding_id === w.id)
       .map((g) => {
         const invited: Record<string, boolean> = {};
         const locked: Record<string, boolean> = {};
         for (const ev of events) {
-          const ig = wIgs.find((x) => x.guest_id === g.id && x.event_instance_id === ev.eventInstanceId);
+          const ig = invitationByGuestEvent.get(`${g.id}:${ev.eventInstanceId}`);
           invited[ev.eventInstanceId] = !!ig;
           locked[ev.eventInstanceId] = ig ? respondedIg.has(ig.id) : false;
         }
@@ -140,7 +151,7 @@ export async function getManageData(db: AppSupabaseClient): Promise<ManageWeddin
           bound: !!g.self_account_id,
           invited,
           locked,
-          showInDirectory: g.show_in_directory ?? true,
+          showInDirectory: g.show_in_directory ?? false,
           dietary: {
             category: d?.category ?? null,
             jainStrictness: d?.jain_strictness ?? null,

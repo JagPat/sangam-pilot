@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { proposeAction, confirmAction } from './rsvp-actions';
 import type { AttendanceStatus } from '@/lib/commands/rsvp';
+import { applyConfirmedRsvp, type RsvpClientState } from './rsvpState';
 
 const CHOICES: { key: AttendanceStatus; label: string }[] = [
   { key: 'accepted', label: 'Accept' },
@@ -49,10 +50,8 @@ export default function RsvpControl({
   const [echo, setEcho] = useState<{ proposalId: string; status: AttendanceStatus } | null>(
     initialEcho ? { proposalId: 'preview', status: initialEcho } : null,
   );
-  const [done, setDone] = useState<AttendanceStatus | null>(null);
+  const [current, setCurrent] = useState<RsvpClientState>({ status, rowVersion });
   const [error, setError] = useState<string | null>(null);
-
-  const current = done ?? status;
 
   function propose(next: AttendanceStatus) {
     setError(null);
@@ -67,9 +66,9 @@ export default function RsvpControl({
     if (!echo) return;
     setError(null);
     startTransition(async () => {
-      const res = await confirmAction(echo.proposalId, rowVersion);
+      const res = await confirmAction(echo.proposalId, current.rowVersion);
       if (!res.ok) return setError(friendly(res.error));
-      setDone(echo.status);
+      setCurrent((before) => applyConfirmedRsvp(before, { status: echo.status, rowVersion: res.rowVersion }));
       setEcho(null);
     });
   }
@@ -78,8 +77,8 @@ export default function RsvpControl({
     <div className="sg-rsvp">
       <div className="sg-rsvp__label">
         <span>Your RSVP:</span>
-        {current ? (
-          <span className={`sg-pill ${PILL[current]}`}>{STATUS_LABEL[current]}</span>
+        {current.status ? (
+          <span className={`sg-pill ${PILL[current.status]}`}>{STATUS_LABEL[current.status]}</span>
         ) : (
           <span className="sg-pill is-none">Not responded</span>
         )}
@@ -106,7 +105,7 @@ export default function RsvpControl({
             <button
               key={c.key}
               type="button"
-              className={`sg-btn${current === c.key ? ' is-selected' : ''}`}
+              className={`sg-btn${current.status === c.key ? ' is-selected' : ''}`}
               onClick={() => propose(c.key)}
               disabled={pending}
             >

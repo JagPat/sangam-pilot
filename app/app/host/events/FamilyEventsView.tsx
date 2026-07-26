@@ -5,8 +5,6 @@ import { createSideEvent, updateSideEvent } from './actions';
 // side hosts are editable; the rest of the schedule shows read-only for context. Forms post to the group_*
 // actions; the RPCs (0021) are the real guard.
 
-const TYPE_LABEL: Record<string, string> = Object.fromEntries(EVENT_TYPES.map((t) => [t.value, t.label]));
-
 function toLocalInput(wall: string | null): string {
   if (!wall) return '';
   return wall.replace(' ', 'T').slice(0, 16);

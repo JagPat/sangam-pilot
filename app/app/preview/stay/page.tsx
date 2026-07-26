@@ -54,7 +54,7 @@ const SVC_FIX: ConsoleServicesWedding = {
     { id: 'r3', serviceName: 'Airport pickup', billing: 'allowance', scope: 'per_household', who: 'Mehta Household', guestId: null, householdId: 'hh2', qty: 2, status: 'confirmed', settle: 'due', notes: null, chargeCents: 150000, currency: 'INR', settleHint: 'front_desk' },
     { id: 'r1', serviceName: 'Welcome hamper', billing: 'included', scope: 'per_household', who: 'Shah Household', guestId: null, householdId: 'hh1', qty: 1, status: 'delivered', settle: 'none', notes: null, chargeCents: 0, currency: 'INR', settleHint: 'front_desk' },
   ],
-  totals: { hostCostCents: 540000, guestChargesCents: 650000, outstanding: 2, currency: 'INR' },
+  totals: { INR: { hostCostCents: 540000, guestChargesCents: 650000, outstanding: 2 } },
 };
 
 export default function PreviewStay() {

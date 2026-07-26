@@ -102,16 +102,18 @@ function QueueRow({ weddingId, it }: { weddingId: string; it: ServiceQueueItem }
 }
 
 export function ServicesConsoleView({ s }: { s: ConsoleServicesWedding }) {
-  const t = s.totals;
+  const totals = Object.entries(s.totals);
   return (
     <>
       <section className="sg-section">
         <h2>Services</h2>
-        <div className="sg-tiles">
-          <div className="sg-tile"><div className="sg-tile__num">{formatMoney(t.hostCostCents, t.currency)}</div><div className="sg-tile__label">Host cost (included)</div></div>
-          <div className="sg-tile"><div className="sg-tile__num">{formatMoney(t.guestChargesCents, t.currency)}</div><div className="sg-tile__label">Guest charges</div></div>
-          <div className="sg-tile"><div className="sg-tile__num">{t.outstanding}</div><div className="sg-tile__label">Awaiting payment</div></div>
-        </div>
+        {totals.length ? totals.map(([currency, t]) => (
+          <div className="sg-tiles" key={currency}>
+            <div className="sg-tile"><div className="sg-tile__num">{formatMoney(t.hostCostCents, currency)}</div><div className="sg-tile__label">Host cost ({currency})</div></div>
+            <div className="sg-tile"><div className="sg-tile__num">{formatMoney(t.guestChargesCents, currency)}</div><div className="sg-tile__label">Guest charges ({currency})</div></div>
+            <div className="sg-tile"><div className="sg-tile__num">{t.outstanding}</div><div className="sg-tile__label">Awaiting payment ({currency})</div></div>
+          </div>
+        )) : <p className="sg-muted">No service totals yet.</p>}
 
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, margin: '4px 0 8px' }}>Add a service</h3>
         <form action={saveService} className="sg-formrow">

@@ -107,5 +107,26 @@ do $$ begin
   raise notice 'OK: correct expected_version applied; status now declined';
 end $$;
 
+-- The authenticated wrapper must return the committed row version so the browser can use it for the
+-- next optimistic-concurrency check without a reload.
+select public.propose_rsvp_change(
+  '33333333-0000-0000-0000-0000000000f1'::uuid,
+  'tentative'::app.attendance_status
+) as pid3 \gset
+create temp table confirmed_result as
+  select public.confirm_rsvp_change(
+    :'pid3'::uuid,
+    (select row_version from app.event_attendance where invitation_guest_id='33333333-0000-0000-0000-0000000000f1')
+  ) as result;
+do $$
+declare v_result jsonb;
+begin
+  select result::text::jsonb into v_result from confirmed_result;
+  if (v_result->>'attendance_id') is null or (v_result->>'row_version')::int <> 3 then
+    raise exception 'TEST FAILED: wrapper did not return attendance id + committed row version: %', v_result;
+  end if;
+  raise notice 'OK: authenticated confirm wrapper returns committed row version';
+end $$;
+
 select 'ALL RSVP-FLOW TESTS PASSED' as result;
 rollback;

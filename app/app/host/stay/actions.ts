@@ -95,31 +95,11 @@ export async function allocateHousehold(fd: FormData): Promise<void> {
   let code = 'alloc';
   try {
     const app = (await serverClientRW()).schema('app');
-    const [roomRes, guestsRes] = await Promise.all([
-      app.from('room').select('capacity').eq('wedding_id', weddingId).eq('id', roomId).single(),
-      app.from('guest').select('id').eq('wedding_id', weddingId).eq('household_id', householdId),
-    ]);
-    if (roomRes.error) throw roomRes.error;
-    if (guestsRes.error) throw guestsRes.error;
-
-    const { data: alloc, error: ea } = await app
-      .from('room_allocation')
-      .insert({ wedding_id: weddingId, room_id: roomId, household_id: householdId, check_in: checkIn, check_out: checkOut, status: 'held' })
-      .select('id')
-      .single();
-    if (ea) {
-      if (errCode(ea) === '23505') code = 'occupied';
-      throw ea;
-    }
-    const seat = (guestsRes.data ?? []).slice(0, roomRes.data!.capacity).map((g) => ({
-      wedding_id: weddingId,
-      allocation_id: alloc.id,
-      guest_id: g.id,
-    }));
-    if (seat.length) {
-      const { error: eo } = await app.from('room_occupant').insert(seat);
-      if (eo) throw eo;
-    }
+    const { error } = await app.rpc('owner_allocate_household', {
+      p_wedding: weddingId, p_room: roomId, p_household: householdId,
+      p_check_in: checkIn, p_check_out: checkOut,
+    });
+    if (error) { if (errCode(error) === '23505') code = 'occupied'; throw error; }
   } catch (e) {
     console.error('[sangam stay] allocateHousehold', e);
     ok = false;

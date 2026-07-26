@@ -49,8 +49,18 @@ select set_config('request.jwt.claims', json_build_object('sub','fb110000-0000-0
 do $$ declare n int; begin
   insert into app.stay_request(wedding_id,household_id,status,nights) values
     ('fb000000-0000-0000-0000-000000000001','fb000000-0000-0000-0000-0000000000a1','allocated',2);
-  insert into app.travel_detail(wedding_id,guest_id,direction,mode,number) values
-    ('fb000000-0000-0000-0000-000000000001','fb000000-0000-0000-0000-0000000000d1','arrival','flight','6E-203');
+  perform app.save_my_travel(
+    'fb000000-0000-0000-0000-000000000001','fb000000-0000-0000-0000-0000000000d1',
+    'arrival','flight','2026-07-30 14:00','Asia/Kolkata','IndiGo','6E-203','Mumbai',
+    'self',true,null
+  );
+  if not exists (
+    select 1 from app.travel_detail
+     where guest_id='fb000000-0000-0000-0000-0000000000d1'
+       and wall_local='2026-07-30 14:00'::timestamp
+       and iana_timezone='Asia/Kolkata' and offset_minutes=330
+       and at_instant='2026-07-30 08:30+00'::timestamptz
+  ) then raise exception 'FAIL(time): Kolkata wall time/offset/instant not preserved'; end if;
   select count(*) into n from app.stay_request;  if n<>1 then raise exception 'FAIL(read): guest sees % stay_requests (expected only their 1)', n; end if;
   select count(*) into n from app.travel_detail; if n<>1 then raise exception 'FAIL(read): guest sees % travel rows (expected 1)', n; end if;
   select count(*) into n from app.stay_request where household_id='fb000000-0000-0000-0000-0000000000a2'; if n<>0 then raise exception 'FAIL(leak): guest sees HH Two stay_request'; end if;
@@ -68,6 +78,24 @@ do $$ declare n int; begin
   raise notice 'OK(guest1): refused writing HH Two stay_request and Guest Two travel';
 end $$;
 
+-- DST-aware conversion uses the explicit travel timezone, never the browser/server timezone.
+select set_config('request.jwt.claims', json_build_object('sub','fb110000-0000-0000-0000-0000000000b1')::text, true);
+do $$ begin
+  perform app.save_my_travel(
+    'fb000000-0000-0000-0000-000000000001','fb000000-0000-0000-0000-0000000000d1',
+    'departure','flight','2026-07-15 10:00','America/New_York',null,null,'New York',
+    'self',false,null
+  );
+  if not exists (
+    select 1 from app.travel_detail
+     where guest_id='fb000000-0000-0000-0000-0000000000d1' and direction='departure'
+       and wall_local='2026-07-15 10:00'::timestamp
+       and iana_timezone='America/New_York' and offset_minutes=-240
+       and at_instant='2026-07-15 14:00+00'::timestamptz
+  ) then raise exception 'FAIL(time): New York DST wall time/offset/instant not preserved'; end if;
+  raise notice 'OK(time): explicit IANA zones preserve Kolkata and New York wall times';
+end $$;
+
 -- ===== Guest Two: sees only own, no room yet =====
 select set_config('request.jwt.claims', json_build_object('sub','fb110000-0000-0000-0000-0000000000b2')::text, true);
 do $$ declare n int; begin
@@ -81,7 +109,7 @@ end $$;
 select set_config('request.jwt.claims', json_build_object('sub','fb110000-0000-0000-0000-0000000000a0')::text, true);
 do $$ declare n int; begin
   select count(*) into n from app.stay_request;  if n<>2 then raise exception 'FAIL(owner): owner sees % stay_requests (expected 2)', n; end if;
-  select count(*) into n from app.travel_detail; if n<>1 then raise exception 'FAIL(owner): owner sees % travel rows (expected 1)', n; end if;
+  select count(*) into n from app.travel_detail; if n<>2 then raise exception 'FAIL(owner): owner sees % travel rows (expected 2)', n; end if;
   raise notice 'OK(owner): owner sees both stay_requests and the travel row';
 end $$;
 

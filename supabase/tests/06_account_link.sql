@@ -125,6 +125,20 @@ do $$ declare v_acc uuid; v_s1 uuid; v_s2 uuid; begin
 end $$;
 
 -- ===== H) SERVICE-ONLY execute: anon + authenticated are blocked; service_role is allowed =====
+-- A changed personal email must detach the old account and revoke its otherwise-unreferenced membership.
+do $$ declare v_account uuid; begin
+  select self_account_id into v_account from app.guest where id='6a000000-0000-0000-0000-000000000001';
+  update app.household_contact set value='ann-new@e.com'
+   where wedding_id='6a000000-0000-0000-0000-0000000000a0' and guest_id='6a000000-0000-0000-0000-000000000001' and channel='email';
+  if (select self_account_id from app.guest where id='6a000000-0000-0000-0000-000000000001') is not null then
+    raise exception 'FAIL(lifecycle): old account remained bound after email change';
+  end if;
+  if (select status from app.wedding_membership where wedding_id='6a000000-0000-0000-0000-0000000000a0' and account_id=v_account) <> 'revoked' then
+    raise exception 'FAIL(lifecycle): stale membership remained active';
+  end if;
+  raise notice 'OK(lifecycle): changed email detached identity and revoked stale membership';
+end $$;
+
 set local role anon;
 do $$ begin
   begin

@@ -10,6 +10,7 @@
 import { redirect } from 'next/navigation';
 import { getVerifiedUser } from '@/lib/auth/session';
 import { redeemInvite } from '@/lib/auth/accessLink';
+import { canUseInviteExchange } from '@/lib/auth/inviteEligibility';
 
 export async function confirmInvite(formData: FormData): Promise<void> {
   if (process.env.INVITE_EXCHANGE_ENABLED !== '1') throw new Error('invite exchange disabled');
@@ -18,7 +19,7 @@ export async function confirmInvite(formData: FormData): Promise<void> {
   if (!token) throw new Error('missing invite token');
 
   const user = await getVerifiedUser();
-  if (!user) {
+  if (!canUseInviteExchange(user)) {
     // No verified session — bounce back to the confirmation page (which shows the sign-in prompt).
     // Nothing is consumed.
     redirect(`/invite/${encodeURIComponent(token)}`);
@@ -28,7 +29,7 @@ export async function confirmInvite(formData: FormData): Promise<void> {
     // Account comes from the verified session; the verified CONTACT (email/phone) must match the invited
     // recipient — the DB rejects a session for a different account holding a forwarded link. redeemInvite
     // is atomic, so a failure here (mismatch / lost race / already used) means nothing changed.
-    await redeemInvite(token, user.id, user.email ?? '');
+    await redeemInvite(token, user!.id, user!.email!);
   } catch {
     redirect(`/invite/${encodeURIComponent(token)}?error=redeem`);
   }

@@ -15,6 +15,7 @@ insert into auth.users(id,email) values
 insert into app.account(id,auth_user_id,email) values
   ('77cc0000-0000-0000-0000-0000000000a0','77aa0000-0000-0000-0000-0000000000a0','owner@e.com'),
   ('77cc0000-0000-0000-0000-0000000000a1','77aa0000-0000-0000-0000-0000000000a1','other@e.com');
+update app.account set can_create_wedding=true where id='77cc0000-0000-0000-0000-0000000000a0';
 
 -- ===== create_wedding: bootstraps the caller as owner (the chicken-and-egg RLS can't) =====
 set local role authenticated;
@@ -88,6 +89,14 @@ do $$ begin
   begin perform app.create_wedding('   ',null,'Asia/Kolkata',null,null);
     raise exception 'FAIL(title): a blank title was accepted';
   exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(title): blank wedding title rejected (%)', sqlerrm; end;
+end $$;
+select set_config('request.jwt.claims', json_build_object('sub','77aa0000-0000-0000-0000-0000000000a1')::text, true);
+do $$ begin
+  begin perform app.create_wedding('Unprovisioned Wedding',null,'Asia/Kolkata',null,null);
+    raise exception 'FAIL(provision): an ordinary authenticated account created a wedding';
+  exception when insufficient_privilege then raise notice 'OK(provision): wedding creation requires explicit provisioning';
+           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(provision): unprovisioned account blocked (%)',sqlerrm; end if;
+  end;
 end $$;
 select set_config('request.jwt.claims', json_build_object('sub','00000000-0000-0000-0000-0000000000ff')::text, true); -- no app.account for this sub
 do $$ begin

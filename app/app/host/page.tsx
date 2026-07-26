@@ -127,7 +127,6 @@ function Section({ title, children, note }: { title: string; children: React.Rea
 }
 
 function WeddingBlock({ w }: { w: WeddingDashboard }) {
-  const allEvents = w.events.map((e) => e.functionName).filter(Boolean);
   return (
     <div>
       <div className="sg-pagehead">

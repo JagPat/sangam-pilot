@@ -191,6 +191,14 @@ body {
 .sg-guestnav a { font-family: var(--font-sans); font-size: 13.5px; font-weight: 500; color: var(--ink-2); text-decoration: none; padding: 7px 14px; border-radius: 999px; border: 1px solid transparent; transition: background .15s, color .15s; }
 .sg-guestnav a:hover { color: var(--maroon); background: var(--gold-soft); }
 .sg-guestnav a.is-current { color: var(--maroon); background: var(--paper); border-color: var(--line); box-shadow: var(--shadow); }
+@media (max-width: 560px) {
+  .sg-topbar { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+  .sg-guestnav { grid-column: 1 / -1; grid-row: 2; width: 100%; overflow-x: auto; padding: 2px 0 5px; scrollbar-width: thin; }
+  .sg-guestnav a { flex: 0 0 auto; padding: 7px 10px; font-size: 13px; }
+  .sg-topbar__signout { grid-column: 2; grid-row: 1; }
+  .sg-switch, .sg-guestnav a.sg-switch { padding: 7px 10px; }
+  .sg-section { padding: 17px 15px; }
+}
 
 /* guest directory ("Who's coming") */
 .sg-dirgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 20px; }

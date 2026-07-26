@@ -1,5 +1,6 @@
 import type { AppSupabaseClient } from '../supabase/clients';
 import { ownedWeddingIds } from './owner';
+import { addServiceTotal, type ServiceTotals } from './serviceTotals';
 
 // Services module (Stay & Travel, layer 3). One "who pays" flag per service segregates everything:
 //   included   → the host bulk-buys / offers it; guest sees it free (price_cents is the host's unit cost)
@@ -126,7 +127,7 @@ export type ServiceQueueItem = {
 };
 export type ConsoleServicesWedding = {
   weddingId: string; title: string; services: ConsoleService[]; queue: ServiceQueueItem[];
-  totals: { hostCostCents: number; guestChargesCents: number; outstanding: number; currency: string };
+  totals: ServiceTotals;
 };
 
 export async function getConsoleServices(db: AppSupabaseClient): Promise<ConsoleServicesWedding[]> {
@@ -160,23 +161,23 @@ export async function getConsoleServices(db: AppSupabaseClient): Promise<Console
       scope: s.scope, settleHint: s.settle_hint, active: s.active, requestCount: reqCount.get(s.id) ?? 0,
     }));
 
-    let hostCost = 0, guestCharges = 0, outstanding = 0;
-    const currency = wServices[0]?.currency ?? 'INR';
+    const totals: ServiceTotals = {};
     const queue: ServiceQueueItem[] = wReqs.map((r) => {
       const svc = svcById.get(r.service_id);
       const charge = svc ? chargeableUnits(svc.billing, r.qty, svc.included_qty) * svc.price_cents : 0;
-      if (svc && svc.billing === 'included') hostCost += r.qty * svc.price_cents;
-      else if (svc && svc.billing === 'allowance') hostCost += Math.min(r.qty, svc.included_qty ?? 0) * svc.price_cents;
-      guestCharges += charge;
-      if (charge > 0 && r.settle !== 'settled' && r.settle !== 'waived') outstanding += 1;
+      const hostCost = svc?.billing === 'included'
+        ? r.qty * svc.price_cents
+        : svc?.billing === 'allowance' ? Math.min(r.qty, svc.included_qty ?? 0) * svc.price_cents : 0;
+      const currency = svc?.currency ?? 'INR';
+      addServiceTotal(totals, currency, hostCost, charge, charge > 0 && r.settle !== 'settled' && r.settle !== 'waived');
       return {
         id: r.id, serviceName: svc?.name ?? '—', billing: svc?.billing ?? 'guest_paid', scope: svc?.scope ?? 'per_household',
         who: r.guest_id ? (guestName.get(r.guest_id) ?? '—') : (hhName.get(r.household_id) ?? '—'),
         guestId: r.guest_id ?? null, householdId: r.household_id, qty: r.qty, status: r.status, settle: r.settle,
-        notes: r.notes ?? null, chargeCents: charge, currency: svc?.currency ?? currency, settleHint: svc?.settle_hint ?? 'front_desk',
+        notes: r.notes ?? null, chargeCents: charge, currency, settleHint: svc?.settle_hint ?? 'front_desk',
       };
     }).sort((a, b) => a.serviceName.localeCompare(b.serviceName) || a.who.localeCompare(b.who));
 
-    return { weddingId: w.id, title: w.title, services: servicesOut, queue, totals: { hostCostCents: hostCost, guestChargesCents: guestCharges, outstanding, currency } };
+    return { weddingId: w.id, title: w.title, services: servicesOut, queue, totals };
   });
 }

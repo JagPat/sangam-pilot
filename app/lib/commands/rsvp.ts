@@ -5,6 +5,7 @@
 import type { AppSupabaseClient } from '../supabase/clients';
 
 export type AttendanceStatus = 'accepted' | 'declined' | 'tentative';
+export type ConfirmedRsvp = { attendanceId: string; rowVersion: number };
 
 /** Step 1: create a pending proposal. Does NOT change attendance. Returns the proposal id to echo/confirm.
  *  Provenance (web vs proxy) is DERIVED server-side — the client cannot set the source. */
@@ -27,13 +28,14 @@ export async function confirmRsvpChange(
   db: AppSupabaseClient,
   proposalId: string,
   expectedVersion?: number,
-): Promise<string> {
+): Promise<ConfirmedRsvp> {
   const { data, error } = await db.rpc('confirm_rsvp_change', {
     p_proposal: proposalId,
     p_expected_version: expectedVersion ?? null,
   });
   if (error) throw error; // includes 'rsvp conflict' on a stale version, and auth failures
-  return data as string; // event_attendance id
+  const result = data as { attendance_id: string; row_version: number };
+  return { attendanceId: result.attendance_id, rowVersion: result.row_version };
 }
 
 // Typical UI/bot flow:

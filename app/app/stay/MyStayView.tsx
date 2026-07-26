@@ -7,6 +7,7 @@ import {
   type MyTravel,
 } from '@/lib/data/mystay';
 import { setStayRequest, saveTravel } from './actions';
+import { travelInputValue } from '@/lib/time/travelTime';
 
 // Presentational "Your stay & travel" for the signed-in guest (used by /stay and the fixture preview).
 // The loader (lib/data/mystay.ts) already limits everything to what this account can act for; the forms post
@@ -63,6 +64,7 @@ function StayRequestForm({ hh }: { hh: MyStayHousehold }) {
   const cur = req?.status ?? '';
   const choice = cur === 'declined' ? 'declined' : 'needs_room';
   const badge = req ? STAY_STATUS[req.status] : null;
+  const fieldId = (name: string) => `stay-${hh.householdId}-${name}`;
 
   return (
     <section className="sg-section">
@@ -77,18 +79,18 @@ function StayRequestForm({ hh }: { hh: MyStayHousehold }) {
         <input type="hidden" name="weddingId" value={hh.weddingId} />
         <input type="hidden" name="householdId" value={hh.householdId} />
         <div className="sg-field">
-          <label>Do you need a room?</label>
-          <select className="sg-select" name="status" defaultValue={choice}>
+          <label htmlFor={fieldId('status')}>Do you need a room?</label>
+          <select id={fieldId('status')} className="sg-select" name="status" defaultValue={choice}>
             <option value="needs_room">Yes — please set one aside</option>
             <option value="declined">No — we’ll arrange our own</option>
           </select>
         </div>
-        <div className="sg-field"><label>Nights</label><input className="sg-input" type="number" name="nights" min={0} max={60} defaultValue={req?.nights ?? ''} style={{ maxWidth: 90 }} /></div>
-        <div className="sg-field"><label>Arrive</label><input className="sg-input" type="date" name="arriveOn" defaultValue={req?.arriveOn ?? ''} /></div>
-        <div className="sg-field"><label>Depart</label><input className="sg-input" type="date" name="departOn" defaultValue={req?.departOn ?? ''} /></div>
+        <div className="sg-field"><label htmlFor={fieldId('nights')}>Nights</label><input id={fieldId('nights')} className="sg-input" type="number" name="nights" min={0} max={60} defaultValue={req?.nights ?? ''} style={{ maxWidth: 90 }} /></div>
+        <div className="sg-field"><label htmlFor={fieldId('arrive')}>Arrive</label><input id={fieldId('arrive')} className="sg-input" type="date" name="arriveOn" defaultValue={req?.arriveOn ?? ''} /></div>
+        <div className="sg-field"><label htmlFor={fieldId('depart')}>Depart</label><input id={fieldId('depart')} className="sg-input" type="date" name="departOn" defaultValue={req?.departOn ?? ''} /></div>
         <div className="sg-field" style={{ flex: '1 1 100%' }}>
-          <label>Anything we should know?</label>
-          <input className="sg-input" name="notes" defaultValue={req?.notes ?? ''} placeholder="e.g. ground floor, cot for a baby, arriving late" />
+          <label htmlFor={fieldId('notes')}>Anything we should know?</label>
+          <input id={fieldId('notes')} className="sg-input" name="notes" defaultValue={req?.notes ?? ''} placeholder="e.g. ground floor, cot for a baby, arriving late" />
         </div>
         <button type="submit" className="sg-btn sg-btn--primary">Save request</button>
       </form>
@@ -98,9 +100,10 @@ function StayRequestForm({ hh }: { hh: MyStayHousehold }) {
 
 function TravelForm({ weddingId, guest, direction }: { weddingId: string; guest: MyStayGuest; direction: 'arrival' | 'departure' }) {
   const t: MyTravel | null = direction === 'arrival' ? guest.arrival : guest.departure;
-  const when = t?.atInstant ? t.atInstant.slice(0, 16) : '';
+  const when = travelInputValue(t?.wallLocal ?? null, t?.atInstant ?? null);
   const pickup = t?.pickupStatus && t.pickupStatus !== 'none' ? PICKUP_STATUS[t.pickupStatus] : null;
   const isArr = direction === 'arrival';
+  const fieldId = (name: string) => `travel-${guest.guestId}-${direction}-${name}`;
 
   return (
     <form action={saveTravel} className="sg-formrow" style={{ marginTop: 4 }}>
@@ -113,31 +116,41 @@ function TravelForm({ weddingId, guest, direction }: { weddingId: string; guest:
           {pickup ? <span className={`sg-badge ${pickup.cls}`} style={{ marginLeft: 8 }}>{pickup.label}</span> : null}
         </div>
       </div>
-      <div className="sg-field"><label>How</label>
-        <select className="sg-select" name="mode" defaultValue={t?.mode ?? ''}>
+      <div className="sg-field"><label htmlFor={fieldId('mode')}>How</label>
+        <select id={fieldId('mode')} className="sg-select" name="mode" defaultValue={t?.mode ?? ''}>
           <option value="">—</option>
           {TRAVEL_MODES.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
       </div>
-      <div className="sg-field"><label>{isArr ? 'Arriving at' : 'Leaving at'}</label><input className="sg-input" type="datetime-local" name="atInstant" defaultValue={when} /></div>
-      <div className="sg-field"><label>Airline / train</label><input className="sg-input" name="carrier" defaultValue={t?.carrier ?? ''} placeholder="e.g. IndiGo" /></div>
-      <div className="sg-field"><label>Flight / train no.</label><input className="sg-input" name="number" defaultValue={t?.number ?? ''} placeholder="e.g. 6E-203" style={{ maxWidth: 150 }} /></div>
-      <div className="sg-field"><label>{isArr ? 'Coming from' : 'Going to'}</label><input className="sg-input" name="fromPlace" defaultValue={t?.fromPlace ?? ''} placeholder="City / airport" /></div>
-      <div className="sg-field"><label>Transport</label>
-        <select className="sg-select" name="arrangedBy" defaultValue={t?.arrangedBy ?? 'self'}>
+      <div className="sg-field"><label htmlFor={fieldId('instant')}>{isArr ? 'Arriving at' : 'Leaving at'}</label><input id={fieldId('instant')} className="sg-input" type="datetime-local" name="atInstant" defaultValue={when} /></div>
+      <div className="sg-field"><label htmlFor={fieldId('timezone')}>Time zone</label>
+        <select id={fieldId('timezone')} className="sg-select" name="timezone" defaultValue={t?.ianaTimezone ?? 'Asia/Kolkata'}>
+          <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
+          <option value="America/New_York">New York (America/New_York)</option>
+          <option value="America/Chicago">Chicago (America/Chicago)</option>
+          <option value="America/Denver">Denver (America/Denver)</option>
+          <option value="America/Los_Angeles">Los Angeles (America/Los_Angeles)</option>
+          <option value="UTC">UTC</option>
+        </select>
+      </div>
+      <div className="sg-field"><label htmlFor={fieldId('carrier')}>Airline / train</label><input id={fieldId('carrier')} className="sg-input" name="carrier" defaultValue={t?.carrier ?? ''} placeholder="e.g. IndiGo" /></div>
+      <div className="sg-field"><label htmlFor={fieldId('number')}>Flight / train no.</label><input id={fieldId('number')} className="sg-input" name="number" defaultValue={t?.number ?? ''} placeholder="e.g. 6E-203" style={{ maxWidth: 150 }} /></div>
+      <div className="sg-field"><label htmlFor={fieldId('place')}>{isArr ? 'Coming from' : 'Going to'}</label><input id={fieldId('place')} className="sg-input" name="fromPlace" defaultValue={t?.fromPlace ?? ''} placeholder="City / airport" /></div>
+      <div className="sg-field"><label htmlFor={fieldId('transport')}>Transport</label>
+        <select id={fieldId('transport')} className="sg-select" name="arrangedBy" defaultValue={t?.arrangedBy ?? 'self'}>
           <option value="self">I’ll arrange my own</option>
           <option value="host">Please arrange pickup</option>
         </select>
       </div>
       <div className="sg-field" style={{ justifyContent: 'flex-end' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <input type="checkbox" name="needsPickup" defaultChecked={t?.needsPickup ?? false} />
+          <input id={fieldId('pickup')} type="checkbox" name="needsPickup" defaultChecked={t?.needsPickup ?? false} />
           Need a pickup
         </label>
       </div>
       <div className="sg-field" style={{ flex: '1 1 100%' }}>
-        <label>Luggage note</label>
-        <input className="sg-input" name="luggageNote" defaultValue={t?.luggageNote ?? ''} placeholder="e.g. 2 large suitcases, a stroller" />
+        <label htmlFor={fieldId('luggage')}>Luggage note</label>
+        <input id={fieldId('luggage')} className="sg-input" name="luggageNote" defaultValue={t?.luggageNote ?? ''} placeholder="e.g. 2 large suitcases, a stroller" />
       </div>
       <button type="submit" className="sg-btn sg-btn--ghost sg-btn--sm">Save {isArr ? 'arrival' : 'departure'}</button>
     </form>

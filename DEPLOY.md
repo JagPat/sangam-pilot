@@ -6,7 +6,8 @@ release gate (`.github/workflows/ci.yml`) — the SQL suites as `anon`/`authenti
 real Postgres 16 — before anything ships.
 
 Decisions locked in `docs/adr/0001-slice1-locked-decisions.md` apply throughout — notably:
-`INVITE_EXCHANGE_ENABLED` stays `0` until email OTP is verified end-to-end.
+`INVITE_EXCHANGE_ENABLED` stays `0` until confirmed-email invite exchange is verified end-to-end and the
+`supabase-real-auth` CI job is green.
 
 ---
 
@@ -95,6 +96,7 @@ DATABASE_URL="postgres://postgres:...@host:5432/postgres" bash scripts/run-sql-s
 
 ## 5. Go-live checklist
 - [ ] CI is green on `main` (release gate + build).
+- [ ] The `supabase-real-auth` job is green (real GoTrue session + PostgREST/RLS smoke).
 - [ ] `app` schema is exposed to PostgREST (Step 3.2 / 3.3).
 - [ ] Auth **Site URL** and **redirect URL** exactly match the deployed domain (`…/auth/callback`).
 - [ ] SMTP sender configured (or using Supabase's built-in for pilot testing).
@@ -122,12 +124,15 @@ files in `supabase/migrations/` applied with `supabase db push` (CI gates them f
 by redeploying a previous commit; roll back a migration with a new down-migration (never edit an applied
 one).
 
-## 8. The strong (real-auth) gate — optional but recommended before real guests
+## 8. The strong (real-auth) gate — mandatory before invite exchange
 On any Docker-enabled machine:
 ```bash
 supabase start                       # real Postgres + GoTrue + PostgREST + Studio
 supabase db push                     # apply migrations
-DATABASE_URL="$(supabase status -o env | grep DB_URL | cut -d= -f2-)" bash scripts/run-sql-suites.sh
+supabase status -o env > /tmp/supabase.env
+set -a; source /tmp/supabase.env; set +a
+(cd app && npm run verify:supabase-local)
 ```
-This exercises the same suites against real GoTrue (covering the live OTP/session path the auth-stub gate
-in CI cannot), closing the ADR-7 release gate.
+This is separate from the psql suites: it creates a disposable confirmed Auth user, signs in through
+GoTrue, calls PostgREST under a real authenticated JWT, verifies anon denial and service-only RPC denial,
+then deletes the disposable data.
