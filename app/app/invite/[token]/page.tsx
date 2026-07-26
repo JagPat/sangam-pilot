@@ -16,6 +16,7 @@ import { notFound } from 'next/navigation';
 import { peekInvite, peekInviteDetails } from '@/lib/auth/accessLink';
 import { getVerifiedUser } from '@/lib/auth/session';
 import { confirmInvite } from './actions';
+import { canUseInviteExchange } from '@/lib/auth/inviteEligibility';
 
 export const dynamic = 'force-dynamic'; // per-request: reads cookies + the token; never cache.
 
@@ -55,8 +56,17 @@ export default async function InvitePage({
     );
   }
 
+  if (!canUseInviteExchange(user)) {
+    return (
+      <main style={wrap}>
+        <h1>Confirm your email</h1>
+        <p>This invitation can only be opened after your sign-in email has been confirmed.</p>
+      </main>
+    );
+  }
+
   // ---- SIGNED IN: reveal the guest name ONLY to the intended recipient (verified-contact match). ----
-  const info = await peekInviteDetails(token, user.email ?? ''); // name only if the contact matches
+  const info = await peekInviteDetails(token, user.email!); // eligibility above guarantees a confirmed email
   if (!info) {
     // Null = invalid/used link OR a live link that isn't for this account's contact. Tell them apart with
     // the no-PII validity check (both messages are safe to show an authenticated user).

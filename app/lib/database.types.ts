@@ -46,7 +46,7 @@ type RoomRow = { id: string; wedding_id: string; hotel_id: string; label: string
 type RoomAllocationRow = { id: string; wedding_id: string; room_id: string; household_id: string; check_in: string | null; check_out: string | null; status: string; notes: string | null; created_at: string };
 type RoomOccupantRow = { id: string; wedding_id: string; allocation_id: string; guest_id: string };
 type StayRequestRow = { id: string; wedding_id: string; household_id: string; status: string; party_size: number | null; nights: number | null; arrive_on: string | null; depart_on: string | null; preferred_type: string | null; accessibility: string | null; notes: string | null; created_at: string; updated_at: string };
-type TravelDetailRow = { id: string; wedding_id: string; guest_id: string; direction: string; mode: string | null; at_instant: string | null; carrier: string | null; number: string | null; from_place: string | null; to_place: string | null; arranged_by: string; needs_pickup: boolean; pickup_status: string; luggage_note: string | null; updated_at: string };
+type TravelDetailRow = { id: string; wedding_id: string; guest_id: string; direction: string; mode: string | null; at_instant: string | null; wall_local: string | null; iana_timezone: string | null; offset_minutes: number | null; carrier: string | null; number: string | null; from_place: string | null; to_place: string | null; arranged_by: string; needs_pickup: boolean; pickup_status: string; luggage_note: string | null; updated_at: string };
 type MyStayRow = { allocation_id: string; wedding_id: string; room_label: string; room_type: string; capacity: number; hotel_name: string; check_in: string | null; check_out: string | null; status: string; roommates: string[] };
 type ServiceRow = { id: string; wedding_id: string; name: string; description: string | null; category: string | null; billing: string; price_cents: number; currency: string; unit_label: string | null; included_qty: number | null; scope: string; settle_hint: string; capacity: number | null; active: boolean; sort_order: number; created_at: string; updated_at: string };
 type ServiceRequestRow = { id: string; wedding_id: string; service_id: string; household_id: string; guest_id: string | null; qty: number; status: string; settle: string; notes: string | null; created_at: string; updated_at: string };
@@ -72,6 +72,7 @@ export type Database = {
           email: string | null;
           preferred_language: string;
           status: string;
+          can_create_wedding: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -160,6 +161,10 @@ export type Database = {
         Args: Record<string, never>;
         Returns: MyStayRow[];
       };
+      save_my_travel: {
+        Args: { p_wedding: string; p_guest: string; p_direction: string; p_mode: string | null; p_wall: string | null; p_timezone: string | null; p_carrier: string | null; p_number: string | null; p_from_place: string | null; p_arranged_by: string; p_needs_pickup: boolean; p_luggage_note: string | null };
+        Returns: string;
+      };
       // Append a Stay & Travel oversight entry (definer, guarded to members of the wedding). Fire-and-forget.
       log_stay_activity: {
         Args: { p_wedding: string; p_action: string; p_summary: string; p_household?: string | null; p_guest?: string | null };
@@ -192,6 +197,13 @@ export type Database = {
         Args: { p_wedding: string; p_guest: string };
         Returns: undefined;
       };
+      manage_guest_identity: {
+        Args: { p_wedding: string; p_guest: string; p_household: string; p_name: string | null; p_email: string | null; p_directory: boolean };
+        Returns: undefined;
+      };
+      organizer_add_guest: { Args: { p_wedding: string; p_household: string | null; p_new_household: string | null; p_host_group: string | null; p_name: string; p_email: string | null }; Returns: string };
+      organizer_invite_guest: { Args: { p_wedding: string; p_guest: string; p_household: string; p_instance: string }; Returns: string };
+      owner_allocate_household: { Args: { p_wedding: string; p_room: string; p_household: string; p_check_in: string | null; p_check_out: string | null }; Returns: string };
       // Family-admin: create an event hosted by the caller's own side (0021).
       group_create_event: {
         Args: {
@@ -277,7 +289,7 @@ export type Database = {
       };
       confirm_rsvp_change: {
         Args: { p_proposal: string; p_expected_version?: number | null };
-        Returns: string;
+        Returns: { attendance_id: string; row_version: number };
       };
     };
     Enums: EmptyMap;

@@ -34,6 +34,8 @@ insert into app.guest(id,wedding_id,household_id,full_name,self_account_id,show_
   ('44444444-0000-0000-0000-000000000023','44444444-0000-0000-0000-000000000001','44444444-0000-0000-0000-000000000011','Elder',   null, true);
 insert into app.guest_delegation(wedding_id,guest_id,account_id,capabilities) values
   ('44444444-0000-0000-0000-000000000001','44444444-0000-0000-0000-000000000023','44444444-0000-0000-0000-0000000000b0','{rsvp,view_schedule}');
+insert into app.directory_consent(wedding_id,guest_id,field,visible) values
+  ('44444444-0000-0000-0000-000000000001','44444444-0000-0000-0000-000000000021','name',true);
 
 insert into app.event_function(id,wedding_id,name,type) values ('44444444-0000-0000-0000-000000000031','44444444-0000-0000-0000-000000000001','Sangeet','sangeet');
 insert into app.event_instance(id,wedding_id,event_function_id,iana_timezone,arrival) values
@@ -58,6 +60,8 @@ do $$ declare n int; begin
   if n <> 0 then raise exception 'FAIL(P0-1b): hidden guest appeared in the directory'; end if;
   select count(*) into n from app.directory_entry where guest_id='44444444-0000-0000-0000-000000000021';
   if n <> 1 then raise exception 'FAIL: a directory-visible guest was missing from the directory (%)', n; end if;
+  select count(*) into n from app.directory_entry where guest_id='44444444-0000-0000-0000-000000000023';
+  if n <> 0 then raise exception 'FAIL: show_in_directory without explicit name consent disclosed a guest'; end if;
   select count(*) into n from app.guest where id='44444444-0000-0000-0000-000000000021';
   if n <> 0 then raise exception 'FAIL: member read a base guest row (contact leak) via directory visibility'; end if;
   raise notice 'OK(P0-1): ordinary member blocked from uninvited event + hidden guest + base guest rows';

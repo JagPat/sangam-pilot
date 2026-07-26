@@ -1,7 +1,10 @@
 # Validation
 
-Two gates verified: the **database** (local Postgres with Supabase roles + auth stub, tests run AS
-`authenticated`/`anon`) and the **app** (`npm ci` from the committed lockfile → `tsc` → `next build`).
+Two local gates are verified: the **database** (local Postgres with Supabase roles + auth stub, tests run AS
+`authenticated`/`anon`) and the **app** (`npm ci` from the committed lockfile → tests → `tsc` → `next build`).
+CI has a separate `supabase-real-auth` job that starts the genuine Supabase stack and obtains a GoTrue
+session before exercising PostgREST as anon/authenticated/service-role. This machine has no Docker binary,
+so that distinct gate must be green in GitHub before enabling invite exchange.
 The linked production project runs Postgres 17; its migration history is aligned byte-for-byte by
 timestamp through `20260726032455_0024_review_hardening.sql`.
 
@@ -19,8 +22,7 @@ timestamp through `20260726032455_0024_review_hardening.sql`.
   Auth users and zero disposable `app.account` rows.
 
 ## Database — all 16 suites pass (real signal)
-All **24 timestamped migrations** apply cleanly, including the recovered production guest-import
-migration and the review-hardening migration.
+All **30 timestamped migrations** apply cleanly through `0030_wedding_creation_gate`.
 - **01_constraints** — muhurat CHECK, invitation↔instance match, no double-invite, derived attendance,
   cross-wedding isolation.
 - **02_rsvp_flow** — propose→confirm, derived counts, optimistic concurrency; both provenance dimensions
@@ -69,11 +71,11 @@ migration and the review-hardening migration.
 - Two-step exchange unchanged: non-consuming GET + CSRF-protected POST server action; the token is the
   sole wedding/guest authority; the whole route is gated by `INVITE_EXCHANGE_ENABLED`.
 
-## App — clean `npm ci`, typecheck, build
-- `npm ci` (committed lockfile) → **0 vulnerabilities**; `npm run typecheck` → passes.
-- `npm run build` → completes. `/invite/[token]` is
-  **ƒ (Dynamic)**; a **Middleware** bundle is registered; no workspace-root warning; ESLint tooling is
-  deliberately deferred to the UI phase (opted out in `next.config.mjs`).
+## App — clean `npm ci`, tests, typecheck, build
+- `npm ci` uses the committed lockfile; `npm audit` reports **0 vulnerabilities**; lint, tests, and
+  `npm run typecheck` pass.
+- `npm run lint` is a required CI step; `npm run build` completes. `/invite/[token]` is
+  **ƒ (Dynamic)** and a **Middleware** bundle is registered.
 
 ## What changed in the post-review hardening
 1. **Release gate discovery** — the runner executes every two-digit numbered suite, including 10–16.
@@ -84,8 +86,8 @@ migration and the review-hardening migration.
 5. **Reproducible app build** — project-local PostCSS config; patched Next/sharp lockfile; zero audit issues.
 
 ## Known follow-ups / integration boundary (before enabling the exchange)
-- **Final DB gate**: run all suites against **`supabase start`** (real auth). The default local/CI gate uses an
-  auth stub because `supabase start` needs Docker (unavailable here) — that certification is yours.
+- **Final real-auth gate**: the GitHub `supabase-real-auth` job must pass. The default psql gate intentionally
+  remains fast and uses an auth stub; it does not claim to exercise GoTrue or PostgREST.
 - **Session mint (OTP/magic-link)**: still the remaining integration. Crucially, it must send the OTP to
   the guest's **invited contact** so the verified session contact matches the link — that is what makes
   the recipient binding real end-to-end. Until it exists the flag stays off.
@@ -93,7 +95,20 @@ migration and the review-hardening migration.
   service-role call has **no mapped `auth.uid()`**, so `derive_rsvp_authority()`/the confirmer check would
   fail closed. Those commands must establish an explicit trusted acting-account context (e.g. set
   `request.jwt.claims` to the acting account) — designed with that module, not before.
-- **Zoned-time P1** polish before real RSVP data is collected.
+- Travel now stores the submitted wall clock, IANA timezone, derived offset, and UTC instant. Keep the
+  timezone selector vocabulary aligned with pilot travel origins as they expand.
+
+## 2026-07-26 release-gate remediation
+
+- RSVP confirmation returns and retains the committed row version, so successive changes do not self-conflict.
+- Service requests have composite wedding/subject constraints and per-person/per-household scope enforcement;
+  dashboard totals are separated by currency.
+- Directory is explicit opt-in; invite exchange requires a confirmed email; email changes and guest deletion
+  revoke stale identity bindings when no other authority basis remains.
+- Add-guest, invite-guest, and room allocation are transactional RPCs; occupant checks lock the allocation and
+  guest rows to serialize concurrent writes.
+- Organizer guest/invitation/attendance reads page beyond Supabase's 1,000-row default and use indexed lookups.
+- Wedding creation is restricted to explicitly provisioned accounts (`app.account.can_create_wedding`).
 
 ## Environment note
 `security_invoker` views require **PostgreSQL 15+**; validated here on **16.13** (matches Supabase's

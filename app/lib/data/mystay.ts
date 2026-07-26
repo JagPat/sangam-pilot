@@ -13,7 +13,7 @@ export const TRAVEL_MODES = [
 ] as const;
 
 export type MyTravel = {
-  mode: string | null; atInstant: string | null; carrier: string | null; number: string | null;
+  mode: string | null; atInstant: string | null; wallLocal: string | null; ianaTimezone: string | null; carrier: string | null; number: string | null;
   fromPlace: string | null; arrangedBy: string; needsPickup: boolean; pickupStatus: string; luggageNote: string | null;
 };
 export type MyStayGuest = { guestId: string; guestName: string | null; arrival: MyTravel | null; departure: MyTravel | null };
@@ -26,13 +26,13 @@ export type MyStayRoom = { roomLabel: string; roomType: string; hotelName: strin
 export type MyStayData = { households: MyStayHousehold[]; rooms: MyStayRoom[] };
 
 type TravelRow = {
-  guest_id: string; direction: string; mode: string | null; at_instant: string | null; carrier: string | null;
+  guest_id: string; direction: string; mode: string | null; at_instant: string | null; wall_local: string | null; iana_timezone: string | null; carrier: string | null;
   number: string | null; from_place: string | null; arranged_by: string; needs_pickup: boolean; pickup_status: string; luggage_note: string | null;
 };
 
 function toTravel(t: TravelRow | undefined): MyTravel | null {
   if (!t) return null;
-  return { mode: t.mode ?? null, atInstant: t.at_instant ?? null, carrier: t.carrier ?? null, number: t.number ?? null, fromPlace: t.from_place ?? null, arrangedBy: t.arranged_by, needsPickup: t.needs_pickup, pickupStatus: t.pickup_status, luggageNote: t.luggage_note ?? null };
+  return { mode: t.mode ?? null, atInstant: t.at_instant ?? null, wallLocal: t.wall_local ?? null, ianaTimezone: t.iana_timezone ?? null, carrier: t.carrier ?? null, number: t.number ?? null, fromPlace: t.from_place ?? null, arrangedBy: t.arranged_by, needsPickup: t.needs_pickup, pickupStatus: t.pickup_status, luggageNote: t.luggage_note ?? null };
 }
 
 export async function getMyStay(db: AppSupabaseClient): Promise<MyStayData> {
@@ -51,7 +51,7 @@ export async function getMyStay(db: AppSupabaseClient): Promise<MyStayData> {
   const [households, requests, travel] = await Promise.all([
     app.from('household').select('id, name').in('id', householdIds),
     app.from('stay_request').select('household_id, status, nights, arrive_on, depart_on, notes').in('household_id', householdIds),
-    app.from('travel_detail').select('guest_id, direction, mode, at_instant, carrier, number, from_place, arranged_by, needs_pickup, pickup_status, luggage_note').in('guest_id', guestIds),
+    app.from('travel_detail').select('guest_id, direction, mode, at_instant, wall_local, iana_timezone, carrier, number, from_place, arranged_by, needs_pickup, pickup_status, luggage_note').in('guest_id', guestIds),
   ]);
   if (households.error) throw households.error;
   if (requests.error) throw requests.error;

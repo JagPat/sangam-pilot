@@ -3,8 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverClientRW } from '@/lib/supabase/serverClient';
-import type { AppSupabaseClient } from '@/lib/supabase/clients';
-import { getOperatorContext } from '@/lib/data/owner';
 
 // Organizer guest + invitation management. Every write runs under the signed-in user's own session, so RLS
 // is the real guard: the OWNER can write any guest; a bride/groom-side FAMILY ADMIN can only write rows on
@@ -39,38 +37,13 @@ export async function addGuest(fd: FormData): Promise<void> {
   let ok = true;
   let code = 'save';
   try {
-    const client = await serverClientRW();
-    const app = client.schema('app');
-    // A NEW household's side: the owner may choose one; a family admin's is forced to the side they manage
-    // (the RLS WITH CHECK on household requires it, so this is what lets their insert succeed at all).
-    const vc = (await getOperatorContext(client as unknown as AppSupabaseClient)).byWedding[weddingId] ?? { isOwner: false, adminGroupId: null };
-    const newHouseholdSide = vc.isOwner ? chosenSide : vc.adminGroupId;
-
-    let hhId = householdId;
-    if (!hhId && newHousehold) {
-      const { data, error } = await app.from('household').insert({ wedding_id: weddingId, name: newHousehold, host_group_id: newHouseholdSide }).select('id').single();
-      if (error) throw error;
-      hhId = data.id;
-    }
-
-    if (!hhId) {
-      ok = false;
-      code = 'household';
-    } else {
-      const { data: g, error: eg } = await app
-        .from('guest')
-        .insert({ wedding_id: weddingId, household_id: hhId, full_name: fullName })
-        .select('id')
-        .single();
-      if (eg) throw eg;
-
-      if (email) {
-        const { error: ec } = await app
-          .from('household_contact')
-          .insert({ wedding_id: weddingId, household_id: hhId, guest_id: g.id, channel: 'email', value: email, is_shared: false });
-        if (ec) throw ec;
-      }
-    }
+    const app = (await serverClientRW()).schema('app');
+    const { error } = await app.rpc('organizer_add_guest', {
+      p_wedding: weddingId, p_household: householdId || null,
+      p_new_household: newHousehold || null, p_host_group: chosenSide,
+      p_name: fullName, p_email: email || null,
+    });
+    if (error) throw error;
   } catch (e) {
     console.error('[sangam manage] addGuest', e);
     ok = false;
@@ -115,34 +88,11 @@ export async function updateGuest(fd: FormData): Promise<void> {
   try {
     const app = (await serverClientRW()).schema('app');
 
-    // Always persist the directory-listing toggle; update the name only when one was supplied.
-    const patch: { show_in_directory: boolean; full_name?: string } = { show_in_directory: showInDirectory };
-    if (fullName) patch.full_name = fullName;
-    {
-      const { error } = await app.from('guest').update(patch).eq('wedding_id', weddingId).eq('id', guestId);
-      if (error) throw error;
-    }
-
-    if (email) {
-      const { data: c, error: eC } = await app
-        .from('household_contact')
-        .select('id')
-        .eq('wedding_id', weddingId)
-        .eq('guest_id', guestId)
-        .eq('channel', 'email')
-        .limit(1)
-        .maybeSingle();
-      if (eC) throw eC;
-      if (c) {
-        const { error } = await app.from('household_contact').update({ value: email }).eq('wedding_id', weddingId).eq('id', c.id);
-        if (error) throw error;
-      } else {
-        const { error } = await app
-          .from('household_contact')
-          .insert({ wedding_id: weddingId, household_id: householdId, guest_id: guestId, channel: 'email', value: email, is_shared: false });
-        if (error) throw error;
-      }
-    }
+    const { error } = await app.rpc('manage_guest_identity', {
+      p_wedding: weddingId, p_guest: guestId, p_household: householdId,
+      p_name: fullName || null, p_email: email || null, p_directory: showInDirectory,
+    });
+    if (error) throw error;
   } catch (e) {
     console.error('[sangam manage] updateGuest', e);
     ok = false;
@@ -206,38 +156,10 @@ export async function inviteGuest(fd: FormData): Promise<void> {
   try {
     const app = (await serverClientRW()).schema('app');
 
-    const { data: inv, error: eInv } = await app
-      .from('invitation')
-      .select('id, status')
-      .eq('wedding_id', weddingId)
-      .eq('household_id', householdId)
-      .eq('event_instance_id', instanceId)
-      .limit(1)
-      .maybeSingle();
-    if (eInv) throw eInv;
-
-    let invId = inv?.id;
-    if (!invId) {
-      const { data: created, error: eC } = await app
-        .from('invitation')
-        .insert({ wedding_id: weddingId, household_id: householdId, event_instance_id: instanceId, status: 'sent' })
-        .select('id')
-        .single();
-      if (eC) throw eC;
-      invId = created.id;
-    } else if (inv!.status !== 'sent') {
-      const { error: eU } = await app.from('invitation').update({ status: 'sent' }).eq('wedding_id', weddingId).eq('id', invId);
-      if (eU) throw eU;
-    }
-
-    // Idempotent: unique (wedding_id, event_instance_id, guest_id) — ignore a re-invite.
-    const { error: eIg } = await app
-      .from('invitation_guest')
-      .upsert(
-        { wedding_id: weddingId, invitation_id: invId, event_instance_id: instanceId, guest_id: guestId },
-        { onConflict: 'wedding_id,event_instance_id,guest_id', ignoreDuplicates: true },
-      );
-    if (eIg) throw eIg;
+    const { error } = await app.rpc('organizer_invite_guest', {
+      p_wedding: weddingId, p_guest: guestId, p_household: householdId, p_instance: instanceId,
+    });
+    if (error) throw error;
   } catch (e) {
     console.error('[sangam manage] inviteGuest', e);
     ok = false;

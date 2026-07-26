@@ -87,6 +87,13 @@ do $$ declare n int; begin
   exception when unique_violation then null; end;
   raise notice 'OK(guest1): cannot double-book the same service';
 
+  begin
+    insert into app.service_request(wedding_id,service_id,household_id,guest_id)
+    values ('fb010000-0000-0000-0000-000000000001','fb010000-0000-0000-0000-0000000000f1',
+            'fb010000-0000-0000-0000-0000000000a1','fb010000-0000-0000-0000-0000000000d1');
+    raise exception 'FAIL(scope): household service accepted a guest subject';
+  exception when check_violation then null; end;
+
   -- cannot request for another guest, nor a household they cannot act for
   begin
     insert into app.service_request(wedding_id,service_id,household_id,guest_id,qty) values

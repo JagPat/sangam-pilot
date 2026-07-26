@@ -9,7 +9,7 @@ import { pageClient } from '@/lib/supabase/pageClient';
 import { proposeRsvpChange, confirmRsvpChange, type AttendanceStatus } from '@/lib/commands/rsvp';
 
 export type ProposeResult = { ok: true; proposalId: string } | { ok: false; error: string };
-export type ConfirmResult = { ok: true } | { ok: false; error: string };
+export type ConfirmResult = { ok: true; rowVersion: number } | { ok: false; error: string };
 
 // STEP 1 — create a pending proposal. Nothing is written to attendance yet; returns the proposal id to echo.
 export async function proposeAction(
@@ -33,9 +33,9 @@ export async function confirmAction(
 ): Promise<ConfirmResult> {
   try {
     const db = await pageClient();
-    await confirmRsvpChange(db, proposalId, expectedVersion ?? undefined);
+    const committed = await confirmRsvpChange(db, proposalId, expectedVersion ?? undefined);
     revalidatePath('/schedule');
-    return { ok: true };
+    return { ok: true, rowVersion: committed.rowVersion };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

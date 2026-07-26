@@ -19,8 +19,8 @@ const FIX: MyStayData = {
       guests: [
         {
           guestId: 'g1', guestName: 'Priya',
-          arrival: { mode: 'flight', atInstant: '2026-08-13T14:30:00+00:00', carrier: 'IndiGo', number: '6E-203', fromPlace: 'Mumbai (BOM)', arrangedBy: 'host', needsPickup: true, pickupStatus: 'assigned', luggageNote: '2 large suitcases' },
-          departure: { mode: 'flight', atInstant: '2026-08-15T18:00:00+00:00', carrier: 'IndiGo', number: '6E-540', fromPlace: null, arrangedBy: 'self', needsPickup: false, pickupStatus: 'none', luggageNote: null },
+          arrival: { mode: 'flight', atInstant: '2026-08-13T09:00:00+00:00', wallLocal: '2026-08-13T14:30:00', ianaTimezone: 'Asia/Kolkata', carrier: 'IndiGo', number: '6E-203', fromPlace: 'Mumbai (BOM)', arrangedBy: 'host', needsPickup: true, pickupStatus: 'assigned', luggageNote: '2 large suitcases' },
+          departure: { mode: 'flight', atInstant: '2026-08-15T12:30:00+00:00', wallLocal: '2026-08-15T18:00:00', ianaTimezone: 'Asia/Kolkata', carrier: 'IndiGo', number: '6E-540', fromPlace: null, arrangedBy: 'self', needsPickup: false, pickupStatus: 'none', luggageNote: null },
         },
         {
           guestId: 'g2', guestName: 'Nikhil',

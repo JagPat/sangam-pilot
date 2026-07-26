@@ -116,6 +116,7 @@ export async function saveTravel(fd: FormData): Promise<void> {
   const direction = s(fd, 'direction');
   const mode = s(fd, 'mode') || null;
   const atLocal = s(fd, 'atInstant');
+  const timezone = s(fd, 'timezone');
   const carrier = s(fd, 'carrier');
   const number = s(fd, 'number');
   const fromPlace = s(fd, 'fromPlace');
@@ -126,23 +127,12 @@ export async function saveTravel(fd: FormData): Promise<void> {
   let ok = true;
   try {
     const app = (await serverClientRW()).schema('app');
-    const { error } = await app.from('travel_detail').upsert(
-      {
-        wedding_id: weddingId,
-        guest_id: guestId,
-        direction,
-        mode,
-        at_instant: atLocal ? new Date(atLocal).toISOString() : null,
-        carrier: carrier || null,
-        number: number || null,
-        from_place: fromPlace || null,
-        arranged_by: arrangedBy,
-        needs_pickup: needsPickup,
-        luggage_note: luggageNote || null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'wedding_id,guest_id,direction' },
-    );
+    const { error } = await app.rpc('save_my_travel', {
+      p_wedding: weddingId, p_guest: guestId, p_direction: direction, p_mode: mode,
+      p_wall: atLocal || null, p_timezone: atLocal ? timezone : null,
+      p_carrier: carrier || null, p_number: number || null, p_from_place: fromPlace || null,
+      p_arranged_by: arrangedBy, p_needs_pickup: needsPickup, p_luggage_note: luggageNote || null,
+    });
     if (error) throw error;
   } catch (e) {
     console.error('[sangam stay] saveTravel', e);

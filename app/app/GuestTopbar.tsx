@@ -16,7 +16,7 @@ export function GuestTopbarView({
   return (
     <div className="sg-topbar">
       <a href="/schedule" className="sg-brand" style={{ textDecoration: 'none' }}>Sangam</a>
-      <nav className="sg-guestnav">
+      <nav className="sg-guestnav" aria-label="Guest navigation">
         <a href="/schedule" className={current === 'schedule' ? 'is-current' : undefined}>Schedule</a>
         <a href="/stay" className={current === 'stay' ? 'is-current' : undefined}>Stay</a>
         <a href="/directory" className={current === 'directory' ? 'is-current' : undefined}>Guests</a>
@@ -24,7 +24,7 @@ export function GuestTopbarView({
           <a href="/host" className="sg-switch">Organizer console →</a>
         ) : null}
       </nav>
-      <form action="/auth/signout" method="post">
+      <form action="/auth/signout" method="post" className="sg-topbar__signout">
         <button type="submit" className="sg-signout">Sign out</button>
       </form>
     </div>

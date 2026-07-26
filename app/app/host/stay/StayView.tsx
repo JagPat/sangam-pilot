@@ -1,4 +1,4 @@
-import { ROOM_TYPES, type StayWedding, type StayRoom, type StayArrival, type StayWaitItem } from '@/lib/data/stay';
+import { ROOM_TYPES, type StayWedding, type StayRoom, type StayArrival } from '@/lib/data/stay';
 import { addHotel, addRooms, allocateHousehold, setAllocationStatus, addOccupant, removeOccupant, setPickupStatus, setStayRequestStatus } from './actions';
 
 // Presentational console for Stay & Travel (used by /host/stay and the fixture preview). Server-action
