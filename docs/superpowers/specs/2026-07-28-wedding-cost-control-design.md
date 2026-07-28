@@ -57,7 +57,7 @@ It may not approve or reject its own estimate and cannot change an approved esti
 - see the consolidated Cost Control dashboard; and
 - correct official invoice and payment records with an audit reason.
 
-For the pilot, the wedding administrator appoints the user and Asheshbhai as cost approvers. Role assignment uses immutable account IDs after invitation acceptance; email is only a provisioning lookup.
+The wedding administrator appoints one or more cost approvers for each wedding. Pilot names and email addresses belong in deployment configuration or seed data, never in reusable schema, policies, application copy, or authorization logic. Role assignment uses immutable account IDs after invitation acceptance; email is only a provisioning lookup.
 
 ### Wedding administrator
 
@@ -246,7 +246,7 @@ It never shows funds available, family contributions, allocations, balances, or 
 
 ### Event-manager workspace
 
-Hardik sees a hierarchy browser, filters by event/vendor/status, a structured estimate form, revision requests, commitment proposals, invoices, and upcoming payment requirements. The interface clearly distinguishes `Estimate`, `Approved estimate`, `Committed`, and `Final invoice` so one number cannot silently replace another.
+An assigned event manager sees a hierarchy browser, filters by event/vendor/status, a structured estimate form, revision requests, commitment proposals, invoices, and upcoming payment requirements. The interface clearly distinguishes `Estimate`, `Approved estimate`, `Committed`, and `Final invoice` so one number cannot silently replace another.
 
 ### Approver workspace
 
@@ -323,10 +323,10 @@ The feature is not production-ready until:
 - migrations and adversarial SQL suites pass against `supabase start` with real `anon`, `authenticated`, `service_role`, and `auth` schemas;
 - `npm ci`, typecheck, unit/integration tests, and the production build pass;
 - the private-data inventory and official-record conversion report are reviewed;
-- live tests confirm Hardik can submit but not approve, an approver can decide, and unrelated users receive no rows;
+- live tests confirm an assigned event manager can submit but not approve, an assigned approver can decide, and unrelated users receive no rows;
 - the live UI contains no funding or family-finance language; and
 - rollback preserves the new official records without restoring private-finance exposure.
 
 ## 12. Success criteria
 
-Sangam succeeds when Hardik can estimate and manage every official wedding cost, the designated approvers can approve and audit those decisions, and no part of the application records or exposes how either family funds the wedding.
+Sangam succeeds when any assigned event manager can estimate and manage the official costs for their wedding, the designated approvers can approve and audit those decisions, and no part of the application records or exposes how either family funds the wedding.
