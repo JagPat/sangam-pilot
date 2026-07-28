@@ -56,6 +56,8 @@ When an approved planner creates a wedding, the atomic creation command assigns 
 
 An event manager invited to an existing wedding does not automatically receive permission to create unrelated weddings. A platform super-administrator must separately grant the account-level creator capability. The UI must show the creation form only when that capability is present.
 
+Verified authentication and application-account linking are separate steps. If the OTP/session succeeds but the service-controlled account link fails, Sangam must show a retryable account-setup error; it must not silently send the user to an empty schedule or misleading wedding-creation screen.
+
 ### Cost approver
 
 `cost_approver` replaces the product meaning of `finance_admin`. It may:
@@ -314,6 +316,7 @@ Database and real-auth tests must prove:
 - an unprovisioned authenticated account cannot create a wedding and is not shown a misleading creation form;
 - a platform-approved planner can create a wedding and atomically receives `wedding_owner` plus `event_manager` for it;
 - an event manager for one wedding cannot create another wedding unless separately granted the account-level creator capability;
+- a verified sign-in with a failed application-account link is reported as an account-setup failure and can be safely retried using only the verified session identity;
 - an event manager cannot approve/reject any estimate or mutate a submitted version;
 - a submitter cannot approve their own submission;
 - a cost approver can decide a submitted estimate and the decision is append-only;

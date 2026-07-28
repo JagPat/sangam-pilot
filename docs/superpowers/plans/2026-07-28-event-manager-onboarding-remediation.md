@@ -31,8 +31,10 @@ The wedding-scoped `event_manager` role currently adds only the Costs navigation
 - Create `supabase/migrations/20260728120000_0036_event_manager_onboarding.sql` — platform provisioning, capability query, and atomic dual-role wedding creation.
 - Create `supabase/tests/18_event_manager_onboarding.sql` — adversarial database coverage.
 - Create `app/lib/data/creator-access.ts` and `.test.ts` — session-account creator read model and UI decision.
+- Modify `app/lib/auth/link.ts` and create `link.test.ts` — return a typed link result instead of swallowing organizer provisioning failures.
 - Modify `app/lib/auth/landing.ts` and `.test.ts` — route approved creators with no wedding to setup.
 - Modify `app/app/auth/callback/route.ts` — use creator-aware landing after account linking.
+- Modify `app/app/login/actions.ts` and create `app/app/access/page.tsx` — surface a successful sign-in whose account link failed and provide a safe retry.
 - Modify `app/app/login/page.tsx` and `app/lib/auth/loginDecision.ts` tests — preserve creator-aware automatic return.
 - Modify `app/app/host/page.tsx` and `app/app/host/setup/page.tsx` — capability-honest empty states.
 - Create `app/lib/data/platform.ts` — platform-super-admin read model.
@@ -155,10 +157,15 @@ git commit -m "fix: make planner wedding creation provisioned and atomic"
 - Create: `app/lib/data/creator-access.test.ts`
 - Modify: `app/lib/auth/landing.ts`
 - Modify: `app/lib/auth/landing.test.ts`
+- Modify: `app/lib/auth/link.ts`
+- Create: `app/lib/auth/link.test.ts`
 - Modify: `app/lib/auth/loginDecision.ts`
 - Modify: `app/lib/auth/loginDecision.test.ts`
 - Modify: `app/app/login/page.tsx`
+- Modify: `app/app/login/actions.ts`
 - Modify: `app/app/auth/callback/route.ts`
+- Create: `app/app/access/page.tsx`
+- Create: `app/app/access/actions.ts`
 - Modify: `app/app/host/page.tsx`
 - Modify: `app/app/host/setup/page.tsx`
 
@@ -191,7 +198,19 @@ Expected: FAIL because creator access is not part of the landing/UI decisions.
 
 `getCreatorAccess` calls `app.current_account_can_create_wedding` through the user-scoped client and returns false on a null result; database errors must be thrown so pages can render an explicit unavailable state rather than incorrectly showing the form.
 
-- [ ] **Step 4: Make authentication landing creator-aware**
+- [ ] **Step 4: Make account linking observable and retryable**
+
+Change `linkSignedInAccount` to return a discriminated result:
+
+```ts
+export type AccountLinkResult =
+  | { ok: true; accountId: string }
+  | { ok: false; reason: 'account_link_failed' };
+```
+
+The callback and typed-code action must redirect a verified user to `/access?reason=account_link_failed` when the service command fails, instead of silently landing on an empty schedule. `/access` calls `requireVerifiedUser`, explains that sign-in succeeded but account setup did not, and offers a POST server action that retries using only the verified session user ID. It never accepts an account ID or email from the browser.
+
+- [ ] **Step 5: Make authentication landing creator-aware**
 
 Change `postAuthDestination` to:
 
@@ -208,7 +227,7 @@ export function postAuthDestination(
 
 After account linking, both the callback and `/login` query organizer navigation and creator access. Existing-session users continue bypassing OTP; a newly approved planner with no wedding lands on setup.
 
-- [ ] **Step 5: Remove the misleading creation form**
+- [ ] **Step 6: Remove the misleading creation form**
 
 `/host/setup` renders `CreateWeddingForm` only when `canCreateWedding` is true. Otherwise it renders:
 
@@ -216,21 +235,21 @@ After account linking, both the callback and `/login` query organizer navigation
 
 `/host` uses the same decision and never links an unprovisioned account to a form that the database will reject.
 
-- [ ] **Step 6: Run focused and full application tests**
+- [ ] **Step 7: Run focused and full application tests**
 
 ```bash
 cd app
-npm test -- lib/auth/landing.test.ts lib/auth/loginDecision.test.ts lib/data/creator-access.test.ts
+npm test -- lib/auth/link.test.ts lib/auth/landing.test.ts lib/auth/loginDecision.test.ts lib/data/creator-access.test.ts
 npm test
 npm run typecheck
 ```
 
 Expected: all pass.
 
-- [ ] **Step 7: Commit the honest onboarding UI**
+- [ ] **Step 8: Commit the honest onboarding UI**
 
 ```bash
-git add app/lib/data/creator-access.ts app/lib/data/creator-access.test.ts app/lib/auth/landing.ts app/lib/auth/landing.test.ts app/lib/auth/loginDecision.ts app/lib/auth/loginDecision.test.ts app/app/login/page.tsx app/app/auth/callback/route.ts app/app/host/page.tsx app/app/host/setup/page.tsx
+git add app/lib/data/creator-access.ts app/lib/data/creator-access.test.ts app/lib/auth/link.ts app/lib/auth/link.test.ts app/lib/auth/landing.ts app/lib/auth/landing.test.ts app/lib/auth/loginDecision.ts app/lib/auth/loginDecision.test.ts app/app/login/page.tsx app/app/login/actions.ts app/app/auth/callback/route.ts app/app/access app/app/host/page.tsx app/app/host/setup/page.tsx
 git commit -m "fix: align planner landing with wedding creator access"
 ```
 
