@@ -47,6 +47,15 @@ The existing `event_manager` role is the planner role. It may:
 
 It may not approve or reject its own estimate and cannot change an approved estimate in place.
 
+`event_manager` remains a wedding-scoped role. Separately, an account-level wedding-creator capability allows an approved planner to create a new client wedding. A planner account is not identified by a person's name or email in code.
+
+When an approved planner creates a wedding, the atomic creation command assigns that account both:
+
+- `wedding_owner`, for setup and wedding administration; and
+- `event_manager`, for operational and Cost Control work.
+
+An event manager invited to an existing wedding does not automatically receive permission to create unrelated weddings. A platform super-administrator must separately grant the account-level creator capability. The UI must show the creation form only when that capability is present.
+
 ### Cost approver
 
 `cost_approver` replaces the product meaning of `finance_admin`. It may:
@@ -258,14 +267,15 @@ The existing implementation has two domains: manager-facing `finance_cost_item` 
 
 Migration occurs in safe stages:
 
-1. Introduce `cost_approver` and migrate existing pilot `finance_admin` assignments after verifying intended users.
-2. Create the new Cost Control tables, template, RPCs, RLS, and tests alongside the current operational table.
-3. Convert each legitimate `finance_cost_item` into a `cost_item` plus an initial estimate/commitment/invoice record according to its current state. Mark the origin `legacy_import` in audit metadata.
-4. Remove `finance_funding_status` from navigation and revoke all access to `finance_funding_signal` immediately.
-5. Inventory private-table production rows. Preserve only official vendor facts by converting them into Cost Control records; do not copy payer-family or allocation data.
-6. Produce an operator-reviewed migration report before deleting any source row.
-7. Drop the private-finance screens, RPC execution grants, views, and tables after the report confirms the official records were preserved.
-8. Rename `/host/costs` to the Cost Control experience and remove `/host/finance` and `/host/budget` financial views.
+1. Correct planner onboarding: expose the existing account-level creator capability to platform administration, hide wedding creation from unprovisioned accounts, and assign both `wedding_owner` and `event_manager` when an approved planner creates a wedding.
+2. Introduce `cost_approver` and migrate existing pilot `finance_admin` assignments after verifying intended users.
+3. Create the new Cost Control tables, template, RPCs, RLS, and tests alongside the current operational table.
+4. Convert each legitimate `finance_cost_item` into a `cost_item` plus an initial estimate/commitment/invoice record according to its current state. Mark the origin `legacy_import` in audit metadata.
+5. Remove `finance_funding_status` from navigation and revoke all access to `finance_funding_signal` immediately.
+6. Inventory private-table production rows. Preserve only official vendor facts by converting them into Cost Control records; do not copy payer-family or allocation data.
+7. Produce an operator-reviewed migration report before deleting any source row.
+8. Drop the private-finance screens, RPC execution grants, views, and tables after the report confirms the official records were preserved.
+9. Rename `/host/costs` to the Cost Control experience and remove `/host/finance` and `/host/budget` financial views.
 
 The migration must not silently delete production records, but its terminal state contains no family contribution, payer-family, allocation, balance, or settlement data.
 
@@ -301,6 +311,9 @@ Custom multi-level approval chains, exchange-rate consolidation, purchase orders
 Database and real-auth tests must prove:
 
 - an event manager can draft, revise, and submit an estimate;
+- an unprovisioned authenticated account cannot create a wedding and is not shown a misleading creation form;
+- a platform-approved planner can create a wedding and atomically receives `wedding_owner` plus `event_manager` for it;
+- an event manager for one wedding cannot create another wedding unless separately granted the account-level creator capability;
 - an event manager cannot approve/reject any estimate or mutate a submitted version;
 - a submitter cannot approve their own submission;
 - a cost approver can decide a submitted estimate and the decision is append-only;
