@@ -9,9 +9,9 @@ import { getCreatorAccess } from '@/lib/data/creator-access';
 import { postAuthDestination, safeInternalPath } from '@/lib/auth/landing';
 import type { AppSupabaseClient } from '@/lib/supabase/clients';
 
-// Sends a Supabase email magic-link / OTP. Clicking it lands on /auth/callback, which establishes the
-// session. Email is normalized (lower/trim) to match the recipient-binding hash used by the invite flow.
-export async function sendMagicLink(formData: FormData): Promise<void> {
+// Sends a code-only Supabase email OTP. The hosted template intentionally has no confirmation URL because
+// mail security scanners can pre-open a one-time link and consume the same token before the guest uses it.
+export async function sendSignInCode(formData: FormData): Promise<void> {
   const email = String(formData.get('email') ?? '').trim().toLowerCase();
   const nextRaw = String(formData.get('next') ?? '');
   const next = nextRaw ? safeInternalPath(nextRaw, '/schedule') : null;
@@ -41,7 +41,7 @@ export async function verifyCode(formData: FormData): Promise<void> {
   const backToCode = (): never =>
     redirect(`/login?error=code&email=${encodeURIComponent(email)}${next ? `&next=${encodeURIComponent(next)}` : ''}`);
 
-  if (!email || !code) backToCode();
+  if (!email || !/^[0-9]{6}$/.test(code)) backToCode();
 
   const supabase = await serverClientRW();
   const { data, error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });

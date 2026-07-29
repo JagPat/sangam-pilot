@@ -23,7 +23,7 @@ Everything a guest can see or do is scoped by the database itself, not just the 
 1. Go to **https://sangam.vitan.in** and choose **Sign in** (or go straight to `/login`).
 2. Enter the email your wedding invitation was sent to.
 3. You get in one of two ways:
-   - **Sign-in link** — tap "Email me a sign-in link," open the email, tap the link.
+   - **Sign-in code** — tap "Email me a sign-in code," then enter the newest six-digit code from the email. The code is valid for 60 minutes; wait for the resend countdown before requesting another.
    - **Sign-in code** *(most reliable on phones)* — in the **"Already have a code from your email?"** box, type the code from the email and tap **"Sign in with code"** once.
 4. You land on **your schedule**.
 

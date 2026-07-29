@@ -1,4 +1,4 @@
-import { sendMagicLink, verifyCode } from './actions';
+import { sendSignInCode, verifyCode } from './actions';
 import { redirect } from 'next/navigation';
 import { getVerifiedUser } from '@/lib/auth/session';
 import type { SessionFailureReason } from '@/lib/auth/sessionState';
@@ -6,6 +6,7 @@ import { loginDestinationForSession } from '@/lib/auth/loginDecision';
 import { getOrganizerNav } from '@/lib/data/nav';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getCreatorAccess } from '@/lib/data/creator-access';
+import { ResendCodeButton } from './ResendCodeButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +59,7 @@ export default async function LoginPage({
         />
       </div>
       <div className="sg-field" style={{ marginTop: 12 }}>
-        <label htmlFor="code">6-digit code</label>
+        <label htmlFor="code">6-digit sign-in code</label>
         <input
           id="code"
           className="sg-input"
@@ -67,7 +68,9 @@ export default async function LoginPage({
           required
           inputMode="numeric"
           autoComplete="one-time-code"
-          pattern="[0-9]*"
+          minLength={6}
+          maxLength={6}
+          pattern="[0-9]{6}"
           placeholder="Enter the code from your email"
         />
       </div>
@@ -91,10 +94,10 @@ export default async function LoginPage({
             <p>
               {email ? (
                 <>
-                  We sent a sign-in link and code to <strong>{email}</strong>.
+                  We sent a sign-in code to <strong>{email}</strong>.
                 </>
               ) : (
-                'We sent you a sign-in link and code.'
+                'We sent you a sign-in code.'
               )}
             </p>
           </header>
@@ -105,8 +108,7 @@ export default async function LoginPage({
             )}
 
             <p style={{ marginTop: 0 }}>
-              Open the link on this device, <strong>or</strong> type the code from that email below — the code
-              works even if the link opens in the wrong browser.
+              Type the six-digit code from the newest email below. It is valid for 60 minutes.
             </p>
 
             {codeForm(true)}
@@ -117,14 +119,11 @@ export default async function LoginPage({
               <span />
             </div>
 
-            <form action={sendMagicLink}>
-              <input type="hidden" name="next" value={nextPath} />
-              <input type="hidden" name="email" value={email ?? ''} />
-              <button type="submit" className="sg-btn sg-btn--block">Resend the email</button>
-            </form>
+            <ResendCodeButton action={sendSignInCode} email={email ?? ''} nextPath={nextPath} />
 
             <p className="sg-muted" style={{ fontSize: 13, marginTop: 16, marginBottom: 0 }}>
-              Use the same email your invitation was sent to — that&apos;s how we confirm it&apos;s you.
+              Only the newest code works. Delivery can take a moment, so wait for the countdown before sending
+              another. Use the same email your invitation was sent to — that&apos;s how we confirm it&apos;s you.
             </p>
           </div>
 
@@ -155,7 +154,7 @@ export default async function LoginPage({
           )}
           {error === 'callback' && (
             <div className="sg-banner is-err">
-              That sign-in link was invalid or expired. Use the code from your email instead, or request a new one.
+              That sign-in request expired. Request a new code and use the newest email.
             </div>
           )}
           {error === 'code' && (
@@ -163,10 +162,10 @@ export default async function LoginPage({
           )}
 
           <p style={{ marginTop: 0 }}>
-            Enter the email your wedding invitation was sent to and we&apos;ll email you a sign-in link and code.
+            Enter the email your wedding invitation was sent to and we&apos;ll email you a six-digit sign-in code.
           </p>
 
-          <form action={sendMagicLink}>
+          <form action={sendSignInCode}>
             <input type="hidden" name="next" value={nextPath} />
             <div className="sg-field">
               <label htmlFor="signin-email">Email address</label>
@@ -181,7 +180,7 @@ export default async function LoginPage({
               />
             </div>
             <button type="submit" className="sg-btn sg-btn--primary sg-btn--block" style={{ marginTop: 16 }}>
-              Email me a sign-in link
+              Email me a sign-in code
             </button>
           </form>
 
