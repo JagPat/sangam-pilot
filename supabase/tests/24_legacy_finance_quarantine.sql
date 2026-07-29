@@ -15,6 +15,10 @@ insert into app.cost_centre(id,wedding_id,template_key,name)
 values
   ('24000000-0000-0000-0000-000000000201','24000000-0000-0000-0000-000000000101','legacy_operational','Imported official costs'),
   ('24000000-0000-0000-0000-000000000202','24000000-0000-0000-0000-000000000101','official_costs','Official costs');
+insert into app.cost_centre(id,wedding_id,parent_id,template_key,name)
+values
+  ('24000000-0000-0000-0000-000000000203','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000201','floral_a','Floral'),
+  ('24000000-0000-0000-0000-000000000204','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000202','floral_b','Floral');
 
 -- Row 301 models a pre-0044 converted mapping and its generated Cost Control copy.
 -- Row 302 is intentionally unlinked: its private funding language alone must not be copied into Cost Control.
@@ -31,8 +35,13 @@ values ('24000000-0000-0000-0000-000000000501','24000000-0000-0000-0000-00000000
 insert into app.legacy_cost_control_conversion(legacy_finance_cost_item_id,wedding_id,cost_item_id,outcome)
 values ('24000000-0000-0000-0000-000000000301','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000401','converted');
 
--- The all-migrations runner has already replaced the old converter, so this deployed-state fixture
--- proves the equivalent pre-0044 exposure directly: both the generated copy and its import marker are readable.
+-- The all-migrations runner has already applied 0044, so restore its predecessor's ledger grant and policy
+-- for this deployed-state pre-upgrade fixture. The overwritten old converter cannot be invoked here.
+grant select on app.legacy_cost_control_conversion to authenticated;
+create policy legacy_conversion_cost_control_read on app.legacy_cost_control_conversion for select
+  using(app.can_access_cost_control(wedding_id));
+
+-- Both the generated copy and conversion metadata are readable before the re-applied 0044 upgrade.
 set role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','24000000-0000-0000-0000-000000000001')::text,false);
 do $$ begin
@@ -42,6 +51,11 @@ do $$ begin
   if not exists(select 1 from app.cost_centre where id='24000000-0000-0000-0000-000000000201'
     and template_key='legacy_operational' and name='Imported official costs') then
     raise exception 'FAIL(precondition): event manager could not read the legacy conversion marker';
+  end if;
+  if not exists(select 1 from app.legacy_cost_control_conversion
+    where legacy_finance_cost_item_id='24000000-0000-0000-0000-000000000301'
+      and outcome='converted' and cost_item_id='24000000-0000-0000-0000-000000000401') then
+    raise exception 'FAIL(precondition): event manager could not read the legacy conversion mapping';
   end if;
 end $$;
 reset role;
@@ -94,8 +108,20 @@ do $$ begin
     raise exception 'FAIL(privacy): event manager inferred legacy conversion from a Cost Control centre';
   end if;
   if not exists(select 1 from app.cost_item where id='24000000-0000-0000-0000-000000000402'
-    and cost_centre_id='24000000-0000-0000-0000-000000000202') then
-    raise exception 'FAIL(quarantine): collision handling deleted or detached a manual Cost Control item';
+    and cost_centre_id='24000000-0000-0000-0000-000000000201') then
+    raise exception 'FAIL(quarantine): neutralization moved or deleted a manual Cost Control item';
+  end if;
+  if not exists(select 1 from app.cost_centre where id='24000000-0000-0000-0000-000000000201'
+    and template_key='cost_centre_24000000000000000000000000000201'
+    and name='Cost centre 24000000000000000000000000000201') then
+    raise exception 'FAIL(quarantine): colliding centre was not neutralized in place';
+  end if;
+  if (select count(*) from app.cost_centre where id in (
+    '24000000-0000-0000-0000-000000000203',
+    '24000000-0000-0000-0000-000000000204'
+  ) and name='Floral') <> 2 or not exists(select 1 from app.cost_centre
+    where id='24000000-0000-0000-0000-000000000203' and parent_id='24000000-0000-0000-0000-000000000201') then
+    raise exception 'FAIL(quarantine): centre neutralization changed a child hierarchy';
   end if;
 end $$;
 reset role;

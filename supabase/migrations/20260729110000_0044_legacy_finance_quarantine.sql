@@ -14,39 +14,33 @@ delete from app.cost_item
     where outcome='converted' and cost_item_id is not null
  );
 
--- The retired converter also left a readable centre label that revealed its provenance. Preserve any
--- manual Cost Control items: convert the centre to a neutral normal one, or merge into an existing neutral
--- centre for the wedding without deleting those manual items.
+-- The retired converter also left a readable centre label that revealed its provenance. Neutralize the
+-- centre in place so any manual Cost Control items and child hierarchy remain untouched.
 do $$
-declare v_legacy record; v_neutral uuid;
+declare v_legacy record; v_suffix text;
 begin
   for v_legacy in
-    select id,wedding_id from app.cost_centre where template_key='legacy_operational'
+    select id,wedding_id,parent_id from app.cost_centre where template_key='legacy_operational'
   loop
-    v_neutral:=null;
-    select c.id into v_neutral
-      from app.cost_centre c
-     where c.wedding_id=v_legacy.wedding_id and c.id<>v_legacy.id
-       and (
-         c.template_key='official_costs'
-         or (c.parent_id is null and c.active and lower(c.name)='official costs')
-       )
-     order by (c.template_key='official_costs') desc,c.id
-     limit 1;
-
-    if v_neutral is null then
+    if not exists(
+      select 1 from app.cost_centre c
+       where c.wedding_id=v_legacy.wedding_id and c.id<>v_legacy.id
+         and (
+           c.template_key='official_costs'
+           or (c.active and c.parent_id is not distinct from v_legacy.parent_id
+               and lower(c.name)='official costs')
+         )
+    ) then
       update app.cost_centre
          set template_key='official_costs',name='Official costs',updated_at=now()
        where id=v_legacy.id;
     else
-      update app.cost_item
-         set cost_centre_id=v_neutral,updated_at=now()
-       where cost_centre_id=v_legacy.id;
+      v_suffix:=replace(v_legacy.id::text,'-','');
       update app.cost_centre
-         set parent_id=case when id=v_neutral then null else v_neutral end,
+         set template_key='cost_centre_'||v_suffix,
+             name='Cost centre '||v_suffix,
              updated_at=now()
-       where parent_id=v_legacy.id;
-      delete from app.cost_centre where id=v_legacy.id;
+       where id=v_legacy.id;
     end if;
   end loop;
 end $$;
