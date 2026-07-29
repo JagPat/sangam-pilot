@@ -35,11 +35,6 @@ type HouseholdContactRow = { id: string; wedding_id: string; household_id: strin
 type InvitationRow = { id: string; wedding_id: string; household_id: string; event_instance_id: string; status: string; rsvp_deadline_at: string | null; plus_one_allowance: number };
 type OperatorRoleRow = { id: string; wedding_id: string; account_id: string; role: string; host_group_id: string | null };
 type HostGroupRow = { id: string; wedding_id: string; kind: string; name: string };
-type FinanceExpenseRow = { id: string; wedding_id: string; cost_item_id: string; description: string; category: string; amount: number; currency_code: string; paid_at: string; paid_by_host_group_id: string; created_by_account_id: string | null; note: string | null; created_at: string };
-type FinanceAllocationRow = { id: string; wedding_id: string; expense_id: string; responsible_host_group_id: string; allocation_amount: number };
-type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; currency_code: string; paid_amount: number; allocated_amount: number; net_position: number };
-type FinanceCostItemRow = { id: string; wedding_id: string; engagement_id: string | null; description: string; category: string; amount: number; currency_code: string; due_date: string | null; payment_status: string; paid_at: string | null; operational_note: string | null; created_by_account_id: string | null; updated_by_account_id: string | null; created_at: string; updated_at: string };
-type FinanceFundingStatusRow = { wedding_id: string; currency_code: string; status: string; updated_at: string };
 type CostCentreRow = { id: string; wedding_id: string; parent_id: string | null; template_key: string | null; name: string; sort_order: number; active: boolean; created_at: string; updated_at: string };
 type CostItemRow = { id: string; wedding_id: string; cost_centre_id: string; event_instance_id: string | null; engagement_id: string | null; title: string; description: string | null; lifecycle_state: string; decision_owner_account_id: string | null; decision_due_at: string | null; created_by_account_id: string; created_at: string; updated_at: string };
 type CostEstimateRow = { id: string; wedding_id: string; cost_item_id: string; version_number: number; origin: string; scope_included: string | null; scope_excluded: string | null; quantity: number | null; unit: string | null; unit_rate: number | null; subtotal: number; tax_rate: number; tax_amount: number; total: number; currency_code: string; suggested_engagement_id: string | null; alternative: string | null; saving_proposal: string | null; dependency: string | null; remarks: string | null; decision_due_at: string | null; state: string; created_by_account_id: string; submitted_by_account_id: string | null; created_at: string; submitted_at: string | null };
@@ -117,9 +112,6 @@ export type Database = {
       invitation: { Row: InvitationRow; Insert: Partial<InvitationRow>; Update: Partial<InvitationRow>; Relationships: [] };
       operator_role: { Row: OperatorRoleRow; Insert: Partial<OperatorRoleRow>; Update: Partial<OperatorRoleRow>; Relationships: [] };
       host_group: { Row: HostGroupRow; Insert: Partial<HostGroupRow>; Update: Partial<HostGroupRow>; Relationships: [] };
-      finance_expense: { Row: FinanceExpenseRow; Insert: Partial<FinanceExpenseRow>; Update: Partial<FinanceExpenseRow>; Relationships: [] };
-      finance_expense_allocation: { Row: FinanceAllocationRow; Insert: Partial<FinanceAllocationRow>; Update: Partial<FinanceAllocationRow>; Relationships: [] };
-      finance_cost_item: { Row: FinanceCostItemRow; Insert: Partial<FinanceCostItemRow>; Update: Partial<FinanceCostItemRow>; Relationships: [] };
       cost_centre: { Row: CostCentreRow; Insert: Partial<CostCentreRow>; Update: Partial<CostCentreRow>; Relationships: [] };
       cost_item: { Row: CostItemRow; Insert: Partial<CostItemRow>; Update: Partial<CostItemRow>; Relationships: [] };
       cost_estimate_version: { Row: CostEstimateRow; Insert: Partial<CostEstimateRow>; Update: Partial<CostEstimateRow>; Relationships: [] };
@@ -147,8 +139,6 @@ export type Database = {
       room_occupancy: { Row: RoomOccupancyRow; Relationships: [] };
       stay_summary: { Row: StaySummaryRow; Relationships: [] };
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
-      finance_net_position: { Row: FinanceNetPositionRow; Relationships: [] };
-      finance_funding_status: { Row: FinanceFundingStatusRow; Relationships: [] };
       cost_control_summary: { Row: CostControlSummaryRow; Relationships: [] };
       cost_control_attention: { Row: CostControlAttentionRow; Relationships: [] };
     };
@@ -263,23 +253,6 @@ export type Database = {
         };
         Returns: undefined;
       };
-      // Owner-only finance writes. p_allocations is a JSON array of {group, percent} OR {group, amount}.
-      owner_add_expense: {
-        Args: { p_wedding: string; p_description: string; p_category: string | null; p_amount: number; p_currency: string; p_paid_at: string; p_paid_by_host_group: string; p_note: string | null; p_allocations: Json };
-        Returns: string;
-      };
-      owner_update_expense: {
-        Args: { p_wedding: string; p_expense: string; p_description: string; p_category: string | null; p_amount: number; p_currency: string; p_paid_at: string; p_paid_by_host_group: string; p_note: string | null; p_allocations: Json };
-        Returns: undefined;
-      };
-      owner_delete_expense: {
-        Args: { p_wedding: string; p_expense: string };
-        Returns: undefined;
-      };
-      manager_add_cost: { Args: { p_wedding: string; p_description: string; p_category: string; p_amount: number; p_currency: string; p_due_date: string | null; p_payment_status: string; p_paid_at: string | null; p_note: string | null }; Returns: string };
-      manager_update_cost: { Args: { p_wedding: string; p_cost: string; p_description: string; p_category: string; p_amount: number; p_currency: string; p_due_date: string | null; p_payment_status: string; p_paid_at: string | null; p_note: string | null }; Returns: undefined };
-      manager_cancel_cost: { Args: { p_wedding: string; p_cost: string }; Returns: undefined };
-      finance_admin_publish_signal: { Args: { p_wedding: string; p_currency: string; p_status: string }; Returns: undefined };
       // Owner-only family (host_group) + family-admin management (0012).
       owner_create_host_group: {
         Args: { p_wedding: string; p_kind: string; p_name: string };

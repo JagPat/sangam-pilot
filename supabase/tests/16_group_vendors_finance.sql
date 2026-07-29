@@ -1,8 +1,4 @@
--- 16_group_vendors_finance.sql — coverage for migration 0022 (family-admin vendor read) + confirmation that
--- the 0011 finance RLS already scopes to a family admin. Proves a bride-side admin sees only vendors their
--- side sources (+ their engagements), cannot write vendors, and can read their side's expense + the net-
--- position split; the groom admin mirrors; the owner sees everything. Requires 00_roles + auth stub +
--- migrations/grants (through 0022).
+-- 16_group_vendors_finance.sql — family-admin vendor scoping after private finance retirement.
 \set ON_ERROR_STOP on
 begin;
 
@@ -24,7 +20,6 @@ insert into app.host_group(id,wedding_id,kind,name) values
   ('fe000000-0000-0000-0000-0000000000cf','fe000000-0000-0000-0000-000000000001','groom_family','Groom family');
 insert into app.operator_role(wedding_id,account_id,role,host_group_id) values
   ('fe000000-0000-0000-0000-000000000001','fecc0000-0000-0000-0000-0000000000a0','wedding_owner',null),
-  ('fe000000-0000-0000-0000-000000000001','fecc0000-0000-0000-0000-0000000000a0','finance_admin',null),
   ('fe000000-0000-0000-0000-000000000001','fecc0000-0000-0000-0000-0000000000b1','host_group_admin','fe000000-0000-0000-0000-0000000000bf'),
   ('fe000000-0000-0000-0000-000000000001','fecc0000-0000-0000-0000-0000000000c1','host_group_admin','fe000000-0000-0000-0000-0000000000cf');
 
@@ -39,16 +34,7 @@ insert into app.engagement(id,wedding_id,vendor_id,state,role_title) values
 
 set local role authenticated;
 
--- ===== owner logs an expense paid by the bride side, split 60/40 =====
-select set_config('request.jwt.claims', json_build_object('sub','fe110000-0000-0000-0000-0000000000a0')::text, true);
-do $$ begin
-  perform app.owner_add_expense('fe000000-0000-0000-0000-000000000001','Décor advance','decor',100000,'INR',
-    date '2026-08-01','fe000000-0000-0000-0000-0000000000bf', null,
-    '[{"group":"fe000000-0000-0000-0000-0000000000bf","percent":60},{"group":"fe000000-0000-0000-0000-0000000000cf","percent":40}]'::jsonb);
-  raise notice 'OK(setup): owner logged a bride-paid expense split 60/40';
-end $$;
-
--- ===== bride admin: sees only their side's vendors, can't write, reads their finance =====
+-- ===== bride admin: sees only their side's vendors and cannot read retired private finance =====
 select set_config('request.jwt.claims', json_build_object('sub','fe110000-0000-0000-0000-0000000000b1')::text, true);
 do $$ declare n int; begin
   select count(*) into n from app.vendor; if n<>1 then raise exception 'FAIL(vendor): bride admin sees % vendors (expected their 1)', n; end if;
@@ -64,10 +50,8 @@ do $$ declare n int; begin
   exception when insufficient_privilege then null; end;
   raise notice 'OK(bride-vendor): read-only — cannot add vendors';
 
-  select count(*) into n from app.finance_expense; if n<1 then raise exception 'FAIL(fin): bride admin cannot read their side''s expense'; end if;
-  select count(*) into n from app.finance_net_position where wedding_id='fe000000-0000-0000-0000-000000000001';
-  if n<2 then raise exception 'FAIL(fin): bride admin sees % net-position rows (expected both sides'' split)', n; end if;
-  raise notice 'OK(bride-finance): reads their expense + the full net-position split';
+  begin perform count(*) from app.finance_expense; raise exception 'FAIL(finance): family admin read retired private finance';
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
 end $$;
 
 -- ===== groom admin: mirror isolation on vendors =====
