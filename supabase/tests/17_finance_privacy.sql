@@ -63,10 +63,10 @@ select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-00
 do $$ begin
   if app.is_finance_admin('17000000-0000-0000-0000-000000000101') or app.is_event_manager('17000000-0000-0000-0000-000000000101')
     then raise exception 'FAIL(role): wedding owner inherited finance/manager authority'; end if;
-  perform app.owner_assign_wedding_role('17000000-0000-0000-0000-000000000101','appointed@example.test','finance_admin');
+  perform app.owner_assign_wedding_role('17000000-0000-0000-0000-000000000101','appointed@example.test','cost_approver');
   if not exists(select 1 from app.owner_list_operators('17000000-0000-0000-0000-000000000101')
-    where email='appointed@example.test' and role='finance_admin' and host_group_id is null)
-    then raise exception 'FAIL(assign): wedding administrator could not appoint finance administrator'; end if;
+    where email='appointed@example.test' and role='cost_approver' and host_group_id is null)
+    then raise exception 'FAIL(assign): wedding administrator could not appoint cost approver'; end if;
 end $$;
 reset role;
 
