@@ -181,14 +181,20 @@ try {
   });
   if (contact.error) throw contact.error;
 
-  // The issuing wrapper is called through the owner's real JWT. It reads the stored contact itself; the
-  // returned raw token is intentionally retained only in this local variable while the database stores hashes.
-  const issued = await browser.schema('app').rpc('issue_guest_access_link', {
-    p_wedding: weddingId, p_guest: guestId, p_ttl: '30 days',
-  });
-  if (issued.error || !issued.data) throw issued.error ?? new Error('owner could not issue recipient-bound invite');
-  const rawInvite = issued.data;
+  // Exercise the same verified-session -> server-only service command used by the host action. The local
+  // route is available only in the isolated development verifier process; raw output remains in memory.
   const verifierBaseUrl = await startVerifierApp();
+  const ownerCookie = await sessionCookieHeader(signedIn.data.session);
+  const issued = await fetch(`${verifierBaseUrl}/api/test/invite-issue`, {
+    method: 'POST',
+    headers: { cookie: ownerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ weddingId, guestId }),
+  });
+  const issuedBody = await issued.json();
+  if (!issued.ok || !issuedBody.ok || !issuedBody.token) {
+    throw new Error('owner could not issue recipient-bound invite through the production command path');
+  }
+  const rawInvite = issuedBody.token;
   const inviteUrl = `${verifierBaseUrl}/invite/${encodeURIComponent(rawInvite)}`;
   const redeemUrl = `${verifierBaseUrl}/api/test/invite-redeem/${encodeURIComponent(rawInvite)}`;
 

@@ -196,8 +196,9 @@ Every table has Row-Level Security enabled and **denies by default** — a polic
 - **service_role** (server only): the trusted path used by the invite-exchange and seeding; bypasses RLS. Never exposed to the browser.
 
 Recipient-bound **access links** are hashed, single-use, and bound to the exact contact they were issued to — a
-forwarded link opened by a different account is rejected and never reveals the guest's name. Issuance derives the
-recipient contact from the authorized guest record. The flow is implemented but stays **off**
+forwarded link opened by a different account is rejected and never reveals the guest's name. Service-only issuance
+proves the verified actor is an active owner, requires one guest-specific unshared email, fixes expiry at 30 days,
+and builds the returned URL from the configured canonical HTTPS site origin. The flow is implemented but stays **off**
 (`INVITE_EXCHANGE_ENABLED=0`) in production until the expanded real-auth and browser acceptance gate is certified.
 
 ---
@@ -224,9 +225,9 @@ Run on the live database and deployment on 2026-07-19:
 ## 9. Operations
 
 - **Deploy:** push to `main` → Coolify rebuilds and redeploys. Base directory `app/`, port 3000.
-- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0046_invite_issuance`.
+- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest migration is `0047_server_invite_issuance`.
 - **Release gate:** SQL suites `00`–`26` in `supabase/tests/` (run as `anon`/`authenticated`/`service_role`) plus the real-auth gate are the certification; keep them green before real-guest rollout.
-- **Env vars (server only):** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INVITE_EXCHANGE_ENABLED=0`. The service-role key must never be a `NEXT_PUBLIC_*` var.
+- **Env vars (server only):** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, canonical HTTPS origin `PUBLIC_SITE_URL`, and `INVITE_EXCHANGE_ENABLED=0`. The service-role key and canonical URL must never be taken from request headers; the key must never be a `NEXT_PUBLIC_*` var.
 - **Rotate secrets** after go-live: Coolify root token, Supabase `service_role` key, DB password.
 
 ---

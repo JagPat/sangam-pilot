@@ -176,7 +176,7 @@ export type Database = {
         Returns: string;
       };
       issue_guest_access_link: {
-        Args: { p_wedding: string; p_guest: string; p_ttl?: string };
+        Args: { p_actor: string; p_wedding: string; p_guest: string };
         Returns: string;
       };
       // The signed-in account's app.account id (from auth.uid()); null if no verified session.

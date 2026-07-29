@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverClientRW } from '@/lib/supabase/serverClient';
+import { buildInviteUrl, issueInviteForVerifiedUser } from '@/lib/auth/inviteIssuance';
 
 // Organizer guest + invitation management. Every write runs under the signed-in user's own session, so RLS
 // is the real guard: the OWNER can write any guest; a bride/groom-side FAMILY ADMIN can only write rows on
@@ -27,8 +28,9 @@ function fail(code: string): never {
 export type IssueAccessLinkState = { url: string | null; error: string | null };
 
 // A raw link exists only in this server-action response, which is delivered to the issuing operator's
-// form state. The browser supplies only row identifiers; the authenticated database wrapper locks the guest,
-// derives the intended contact atomically, and stores hashes only.
+// form state. The browser supplies only row identifiers; identity comes from auth.getUser(), while the
+// service-only database command independently proves owner access, derives the personal contact, and stores
+// hashes only with a fixed lifetime.
 export async function issueGuestAccessLink(
   _previous: IssueAccessLinkState,
   fd: FormData,
@@ -46,14 +48,8 @@ export async function issueGuestAccessLink(
     const { data: auth, error: authError } = await client.auth.getUser();
     if (authError || !auth.user) return { url: null, error: 'Please sign in again before issuing a link.' };
 
-    const { data: rawToken, error } = await client.schema('app').rpc('issue_guest_access_link', {
-      p_wedding: weddingId,
-      p_guest: guestId,
-      p_ttl: '30 days',
-    });
-    if (error || !rawToken) return { url: null, error: 'Could not issue that link. Please try again.' };
-
-    return { url: `/invite/${rawToken}`, error: null };
+    const rawToken = await issueInviteForVerifiedUser(auth.user.id, weddingId, guestId);
+    return { url: buildInviteUrl(rawToken), error: null };
   } catch {
     // Deliberately do not log an RPC response here: it could contain the one-time raw token or contact.
     return { url: null, error: 'Could not issue that link. Please try again.' };

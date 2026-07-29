@@ -28,8 +28,10 @@ migrations, RLS, and `propose/confirm` RSVP contract.
 - `app/invite/[token]/actions.ts` (POST server action, CSRF-protected by Next) reads the account from
   the verified session and calls `redeemInvite()` (the single redemption path), passing the verified
   contact — redemption is **recipient-bound**, so an arbitrary session + bearer token cannot redeem.
-- The host issues a raw link once from the server after deriving the recipient email from the authorized
-  guest record; the database stores only hashes. The whole route stays dark in production until the
+- The host issues a raw link once through a service-only command. PostgreSQL independently verifies the
+  session-derived actor is an active wedding owner, requires exactly one guest-specific unshared email, and
+  fixes expiry at 30 days; the database stores only hashes. The returned absolute URL is based only on the
+  configured canonical `PUBLIC_SITE_URL`. The whole route stays dark in production until the
   expanded real-GoTrue and browser acceptance journey has been certified.
 
 ## Release state
@@ -40,6 +42,7 @@ migrations, RLS, and `propose/confirm` RSVP contract.
 
 ## Env
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` (client + server), `SUPABASE_SERVICE_ROLE_KEY` (server only),
+`PUBLIC_SITE_URL` (required canonical HTTPS origin, with no path/query/fragment),
 `INVITE_EXCHANGE_ENABLED` (keep `0` in production until the real-auth/browser gate is certified; off/unset keeps it 404).
 
 ## Guardrails

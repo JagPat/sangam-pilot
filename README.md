@@ -42,7 +42,7 @@ DATABASE_URL="postgres://…" bash scripts/run-sql-suites.sh
 
 # 3) App
 cd app && npm install
-cp .env.production.example .env.local     # fill SUPABASE_URL / ANON / SERVICE_ROLE; INVITE_EXCHANGE_ENABLED=0
+cp .env.production.example .env.local     # fill Supabase values + PUBLIC_SITE_URL; keep invite flag 0
 npm run dev
 ```
 
@@ -66,6 +66,8 @@ bank statements, sources of funds, private balances, or which family funded an i
   enabled only after the expanded real-GoTrue and browser acceptance journey is certified in the hosted environment.
 - Access links are email-only, self-binding, and bound to the exact issue-time contact. Proxy access is via
   `guest_delegation`, not the self-binding link flow.
+- `PUBLIC_SITE_URL` is required for host issuance and must be the canonical public HTTPS origin (for example,
+  `https://sangam.example`) with no path, query, or fragment. Invite URLs never trust request Host/Origin headers.
 - Keep the SQL suites green (CI enforces this on every push) before real-guest rollout.
 - Keep event-manager operations and cost-approver decisions independent; neither role is implied by wedding
   ownership.

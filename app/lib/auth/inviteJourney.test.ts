@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -12,6 +12,12 @@ const testRedeemRoute = readFileSync(resolve(appRoot, 'app/api/test/invite-redee
 const localVerifier = readFileSync(resolve(appRoot, 'scripts/verify-supabase-local.mjs'), 'utf8');
 const manageActions = readFileSync(resolve(appRoot, 'app/host/manage/actions.ts'), 'utf8');
 const managePage = readFileSync(resolve(appRoot, 'app/host/manage/page.tsx'), 'utf8');
+const envExample = readFileSync(resolve(appRoot, '.env.example'), 'utf8');
+const productionEnvExample = readFileSync(resolve(appRoot, '.env.production.example'), 'utf8');
+const issueRoutePath = resolve(appRoot, 'app/api/test/invite-issue/route.ts');
+const issueRoute = existsSync(issueRoutePath) ? readFileSync(issueRoutePath, 'utf8') : '';
+const inviteIssuancePath = resolve(appRoot, 'lib/auth/inviteIssuance.ts');
+const inviteIssuance = existsSync(inviteIssuancePath) ? readFileSync(inviteIssuancePath, 'utf8') : '';
 
 describe('recipient-bound invitation journey contract', () => {
   it('sends a signed-out valid invite to login while retaining its invite destination', () => {
@@ -32,13 +38,32 @@ describe('recipient-bound invitation journey contract', () => {
     expect(accessActions).toContain('postAuthDestination(next, nav.sections, creator.canCreateWedding)');
   });
 
-  it('issues a link only from database-authorized row identifiers and server-derived contact', () => {
+  it('issues through the server-only command using only verified-session identity and row identifiers', () => {
     expect(manageActions).toContain('export async function issueGuestAccessLink');
-    expect(manageActions).toContain("rpc('issue_guest_access_link'");
+    expect(manageActions).toContain('issueInviteForVerifiedUser(auth.user.id, weddingId, guestId)');
+    expect(manageActions).toContain('buildInviteUrl(rawToken)');
     expect(manageActions).not.toContain("from('household_contact')");
+    expect(manageActions).not.toContain("rpc('issue_guest_access_link'");
     expect(manageActions).not.toContain("rpc('issue_access_link'");
+    expect(manageActions).not.toContain('p_ttl');
     expect(manageActions).not.toMatch(/fd\.get\(['\"](?:email|contact|accountId|authUserId)['\"]\)/);
     expect(managePage).toContain('IssueAccessLinkForm');
+  });
+
+  it('returns an absolute invite URL from the configured canonical HTTPS site origin', () => {
+    expect(manageActions).toContain('buildInviteUrl(rawToken)');
+    expect(inviteIssuance).toContain("configured.protocol !== 'https:'");
+    expect(inviteIssuance).toContain("configured.pathname !== '/'");
+    expect(inviteIssuance).toContain('new URL(`/invite/${encodeURIComponent(rawToken)}`, configured.origin)');
+    expect(envExample).toContain('PUBLIC_SITE_URL=');
+    expect(productionEnvExample).toContain('PUBLIC_SITE_URL=https://');
+    expect(manageActions).not.toContain("headers().get('host')");
+    expect(manageActions).not.toContain("headers().get('origin')");
+  });
+
+  it('does not claim the OTP flow left the guest unlinked', () => {
+    expect(invitePage).not.toContain('Nothing has been linked yet.');
+    expect(invitePage).toContain('Confirm to finish opening this invitation with this account.');
   });
 
   it('keeps the real-auth verifier route unavailable outside development and derives redemption from its session', () => {
@@ -46,9 +71,15 @@ describe('recipient-bound invitation journey contract', () => {
     expect(testRedeemRoute).toContain("process.env.SANGAM_REAL_AUTH_TEST === '1'");
     expect(testRedeemRoute).toContain('getVerifiedUser()');
     expect(testRedeemRoute).toContain('redeemInviteForVerifiedUser(token, user)');
+    expect(issueRoute).toContain("process.env.NODE_ENV === 'development'");
+    expect(issueRoute).toContain("process.env.SANGAM_REAL_AUTH_TEST === '1'");
+    expect(issueRoute).toContain('getVerifiedUser()');
+    expect(issueRoute).toContain('issueInviteForVerifiedUser(user.id, weddingId, guestId)');
   });
 
   it('proves intended-account replay is idempotent before testing cross-account replay denial', () => {
+    expect(localVerifier).toContain('/api/test/invite-issue');
+    expect(localVerifier).not.toContain("browser.schema('app').rpc('issue_guest_access_link'");
     expect(localVerifier).toContain('const intendedReplay = await fetch(redeemUrl');
     expect(localVerifier).toContain('headers: { cookie: intendedCookie }');
     expect(localVerifier).toContain("const crossAccountReplay = await admin.schema('app').rpc('redeem_and_bind'");
