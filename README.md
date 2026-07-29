@@ -17,8 +17,8 @@ sangam/
     SPEC_v0.3.2_DELTA.md, CONNECTION_MODEL.md
   supabase/
     config.toml                           # exposes the `app` schema to PostgREST; local auth config
-    migrations/202607*_*.sql              # timestamped Supabase history (24 migrations)
-    tests/00..16_*.sql                    # role-based SQL suites (the release gate)
+    migrations/202607*_*.sql              # timestamped Supabase history
+    tests/00..22_*.sql                    # role-based SQL suites (the release gate)
   app/                                    # Next.js 15 app (App Router)
     app/login, app/auth/*                 # email magic-link / OTP sign-in
     app/schedule/*                        # personalized schedule + two-step RSVP
@@ -47,7 +47,16 @@ npm run dev
 ```
 
 Guests sign in at `/login` with the email on their account (`guest.self_account_id`), which lands on
-`/schedule`.
+`/schedule`. Returning guests keep the rotated secure session and are not asked for another code while it
+remains valid.
+
+Approved wedding creators can create a wedding from `/host/setup`; creation atomically provisions their
+membership, `wedding_owner`, and `event_manager` access. The platform super-admin enables this capability
+from `/host/platform`.
+
+Event managers and separately appointed cost approvers use `/host/cost-control`. It records only official
+target/approved estimates, commitments, invoices, and payment status. It never records family contributions,
+bank statements, sources of funds, private balances, or which family funded an item.
 
 ## Non-negotiable invariants (see `docs/adr/0001`)
 
@@ -57,7 +66,10 @@ Guests sign in at `/login` with the email on their account (`guest.self_account_
 - Access links are email-only, self-binding, and bound to the exact issue-time contact. Proxy access is via
   `guest_delegation`, not the self-binding link flow.
 - Keep the SQL suites green (CI enforces this on every push) before real-guest rollout.
+- Keep event-manager operations and cost-approver decisions independent; neither role is implied by wedding
+  ownership.
 
 ## Deploy
 
-See **DEPLOY.md** — Next app on Coolify, Supabase for the backend, GitHub auto-deploy, CI release gate.
+See **DEPLOY.md** — Next app on Coolify, Supabase for the backend, GitHub auto-deploy, CI release gate, and
+automatic live smoke verification of `sangam.vitan.in` after a green main build.

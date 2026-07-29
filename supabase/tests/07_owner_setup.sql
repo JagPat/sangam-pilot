@@ -74,11 +74,11 @@ do $$ declare v_wed uuid := current_setting('sangam.wed')::uuid; v_inst uuid := 
   begin
     perform app.owner_create_event(v_wed,'Sneaky Event','other',null, timestamp '2026-12-02 12:00','Asia/Kolkata');
     raise exception 'FAIL(authz): a non-owner created an event';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(authz): non-owner blocked from owner_create_event (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(authz): non-owner blocked from owner_create_event (%)', sqlerrm; end;
   begin
     perform app.owner_update_event(v_wed, v_inst, 'Hijacked',null,null,null,null,false);
     raise exception 'FAIL(authz): a non-owner edited an event';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(authz): non-owner blocked from owner_update_event (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(authz): non-owner blocked from owner_update_event (%)', sqlerrm; end;
 end $$;
 reset role;
 
@@ -88,21 +88,21 @@ select set_config('request.jwt.claims', json_build_object('sub','77aa0000-0000-0
 do $$ begin
   begin perform app.create_wedding('   ',null,'Asia/Kolkata',null,null);
     raise exception 'FAIL(title): a blank title was accepted';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(title): blank wedding title rejected (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(title): blank wedding title rejected (%)', sqlerrm; end;
 end $$;
 select set_config('request.jwt.claims', json_build_object('sub','77aa0000-0000-0000-0000-0000000000a1')::text, true);
 do $$ begin
   begin perform app.create_wedding('Unprovisioned Wedding',null,'Asia/Kolkata',null,null);
     raise exception 'FAIL(provision): an ordinary authenticated account created a wedding';
   exception when insufficient_privilege then raise notice 'OK(provision): wedding creation requires explicit provisioning';
-           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(provision): unprovisioned account blocked (%)',sqlerrm; end if;
+           when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK(provision): unprovisioned account blocked (%)',sqlerrm; end if;
   end;
 end $$;
 select set_config('request.jwt.claims', json_build_object('sub','00000000-0000-0000-0000-0000000000ff')::text, true); -- no app.account for this sub
 do $$ begin
   begin perform app.create_wedding('Ghost Wedding',null,'Asia/Kolkata',null,null);
     raise exception 'FAIL(signin): an accountless caller created a wedding';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(signin): a caller with no app.account is rejected (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(signin): a caller with no app.account is rejected (%)', sqlerrm; end;
 end $$;
 
 -- ===== build_zoned_time is INTERNAL: not executable by authenticated (revoked from all app roles) =====
@@ -111,7 +111,7 @@ do $$ begin
     perform app.build_zoned_time(timestamp '2026-12-01 19:00','Asia/Kolkata','host');
     raise exception 'FAIL(internal): authenticated executed build_zoned_time';
   exception when insufficient_privilege then raise notice 'OK(internal): authenticated cannot execute build_zoned_time';
-           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(internal): build_zoned_time blocked (%)', sqlerrm; end if;
+           when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK(internal): build_zoned_time blocked (%)', sqlerrm; end if;
   end;
 end $$;
 reset role;

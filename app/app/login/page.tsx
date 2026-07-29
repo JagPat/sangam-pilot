@@ -5,6 +5,7 @@ import type { SessionFailureReason } from '@/lib/auth/sessionState';
 import { loginDestinationForSession } from '@/lib/auth/loginDecision';
 import { getOrganizerNav } from '@/lib/data/nav';
 import { pageClient } from '@/lib/supabase/pageClient';
+import { getCreatorAccess } from '@/lib/data/creator-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,18 +21,22 @@ export default async function LoginPage({
   }>;
 }) {
   const { sent, error, next, email, reason } = await searchParams;
-  const nextPath = next ?? '/schedule';
+  const nextPath = next ?? '';
 
   const user = await getVerifiedUser();
   let sections: { href: string }[] = [];
+  let canCreateWedding = false;
   if (user) {
     try {
-      sections = (await getOrganizerNav(await pageClient())).sections;
+      const db = await pageClient();
+      const [nav, creator] = await Promise.all([getOrganizerNav(db), getCreatorAccess(db)]);
+      sections = nav.sections;
+      canCreateWedding = creator.canCreateWedding;
     } catch {
       // Authentication succeeded; navigation enrichment is best-effort.
     }
   }
-  const destination = loginDestinationForSession(user, next ?? null, sections);
+  const destination = loginDestinationForSession(user, next ?? null, sections, canCreateWedding);
   if (destination) redirect(destination);
 
   // Typed-code sign-in: robust on phones because a code (unlike a link) can't be consumed by

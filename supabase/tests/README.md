@@ -49,14 +49,8 @@ Each script prints `OK…` lines and raises loudly on any `FAIL`. A clean exit =
   `owner_create_event`/`owner_update_event` build the `app.zoned_time` with the correct offset
   (IST +330, EDT −240, EST −300) and rename/move/cancel; a non-owner cannot create or edit;
   the internal `build_zoned_time` is not executable by `authenticated`.
-- **08_finance.sql** — migration **0011** finance MVP, the approved 8 + 6 adversarial tests:
-  cross-wedding isolation; a bride-admin cannot read groom-private line items; co-host/plain-member get
-  nothing; allocations cannot exceed or fall short (deferred balance trigger, forced via
-  `SET CONSTRAINTS … IMMEDIATE`); 50/50 + unequal settlement arithmetic; payer ≠ responsible; INR and USD
-  never summed; the aggregate respects RLS (viewer → complete totals, else empty); **no RLS recursion**
-  (42P17) for a family admin; every referenced function present; ₹100 split three ways totals exactly ₹100;
-  changing an amount without re-balancing fails at commit; delete cascades cleanly; three groups yield a
-  **net position**, not a unique who-pays-whom transfer plan. Plus owner-only writes + direct-write denial.
+- **08_finance.sql** — regression for the retired finance MVP: no `anon`/`authenticated` table or view
+  grants and no callable legacy expense, funding-signal, or manager-cost routines.
 
 - **09_host_groups.sql** — migration **0012** family/host-group + family-admin RPCs: only the wedding owner
   can create groups or assign admins; assigning by email mints an UNLINKED account (so 0009 adopts it on first
@@ -70,7 +64,16 @@ Each script prints `OK…` lines and raises loudly on any `FAIL`. A clean exit =
   ordinary guest.
 - **15_group_events.sql** — side-scoped event writes and rejection of event-function mutations shared
   with an out-of-scope side.
-- **16_group_vendors_finance.sql** — side-scoped vendor visibility and finance reads.
+- **16_group_vendors_finance.sql** — side-scoped vendor visibility plus proof that a family admin cannot
+  read the retired private-finance tables.
+- **17_finance_privacy.sql** — event-manager/cost-approver separation; wedding ownership implies neither;
+  new `finance_admin` appointments are rejected; private finance remains unreadable.
+- **18_event_manager_onboarding.sql** — platform provisioning and atomic wedding creation with active
+  membership, `wedding_owner`, and `event_manager` roles.
+- **19–21** — official Cost Control schema, immutable estimate decisions, commitments, verified invoices,
+  bounded payment status, currency-separated aggregate totals, and direct-DML denial.
+- **22_legacy_finance_transition.sql** — only non-private operational targets convert, as submitted estimates
+  requiring approval; private family-linked rows are excluded and all former endpoints fail closed.
 
 Every suite runs under the single `scripts/run-sql-suites.sh` command above.
 

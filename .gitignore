@@ -21,3 +21,6 @@ supabase/.temp/
 app/test-results/
 app/playwright-report/
 app/.session-profile/
+
+# isolated agent worktrees
+.worktrees/

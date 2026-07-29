@@ -5,6 +5,7 @@ import type { AppSupabaseClient } from '@/lib/supabase/clients';
 import { linkSignedInAccount } from '@/lib/auth/link';
 import { getOrganizerNav } from '@/lib/data/nav';
 import { postAuthDestination } from '@/lib/auth/landing';
+import { getCreatorAccess } from '@/lib/data/creator-access';
 
 // Landing point for the magic-link / OTP email. Establishes the session cookies, then forwards to `next`.
 // Supports both the PKCE `code` flow (@supabase/ssr default) and the `token_hash`+`type` email template.
@@ -36,20 +37,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return redirectTo('/login?error=callback');
   }
 
-  // Bind this account to any guest invited at their verified email (best-effort; never blocks sign-in).
   const { data: userData } = await supabase.auth.getUser();
-  if (userData.user) await linkSignedInAccount(userData.user.id);
+  if (!userData.user) return redirectTo('/login?error=callback');
+  const linkResult = await linkSignedInAccount(userData.user.id);
+  if (!linkResult.ok) return redirectTo('/access?reason=account_link_failed');
 
   // Default landing: a wedding owner (event manager) is usually also a guest, so without an explicit
   // destination send them to the organizer console rather than their own guest schedule. Best-effort —
   // never blocks sign-in; an explicit `next` (e.g. a deep link into an event) always wins.
   let sections: { href: string }[] = [];
+  let canCreateWedding = false;
   if (nextParam == null) {
     try {
-      sections = (await getOrganizerNav(supabase as unknown as AppSupabaseClient)).sections;
+      const appDb = supabase as unknown as AppSupabaseClient;
+      const [nav, creator] = await Promise.all([getOrganizerNav(appDb), getCreatorAccess(appDb)]);
+      sections = nav.sections;
+      canCreateWedding = creator.canCreateWedding;
     } catch {
       // Fall back to the guest schedule.
     }
   }
-  return redirectTo(postAuthDestination(nextParam, sections));
+  return redirectTo(postAuthDestination(nextParam, sections, canCreateWedding));
 }

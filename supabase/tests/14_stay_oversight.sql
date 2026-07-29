@@ -118,7 +118,7 @@ do $$ declare before_n int; after_n int; begin
     );
     raise exception 'FAIL(log-forgery): ordinary guest forged manager activity';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     if sqlerrm <> 'not authorized to log this stay activity' then raise; end if;
   end;
   select count(*) into after_n from app.stay_activity;

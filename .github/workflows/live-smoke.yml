@@ -1,0 +1,29 @@
+name: Live smoke
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: sangam-live-smoke
+  cancel-in-progress: true
+
+jobs:
+  verify-live:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for Coolify and verify the public deployment
+        env:
+          LIVE_BASE_URL: https://sangam.vitan.in
+        run: |
+          for attempt in $(seq 1 20); do
+            if node scripts/verify-live.mjs; then exit 0; fi
+            echo "Deployment not ready yet (attempt $attempt/20)"
+            sleep 15
+          done
+          exit 1

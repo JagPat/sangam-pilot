@@ -44,10 +44,10 @@ do $$ declare v_id uuid; v_kind app.host_group_kind; begin
   if v_kind <> 'couple' then raise exception 'FAIL(create): kind not stored (%)', v_kind; end if;
   begin perform app.owner_create_host_group('99000000-0000-0000-0000-000000000001','not_a_kind','X');
     raise exception 'FAIL(create): an invalid kind was accepted';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin perform app.owner_create_host_group('99000000-0000-0000-0000-000000000001','custom','   ');
     raise exception 'FAIL(create): a blank name was accepted';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   raise notice 'OK(create): owner creates a validated host group; bad kind + blank name refused';
 end $$;
 
@@ -83,13 +83,13 @@ end $$;
 do $$ begin
   begin perform app.owner_assign_group_admin('99000000-0000-0000-0000-000000000001','99000000-0000-0000-0000-0000000000b0','x@e.com','wedding_owner');
     raise exception 'FAIL(role): wedding_owner could be assigned as a family admin';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(role): only host_group_admin/co_host may be assigned (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(role): only host_group_admin/co_host may be assigned (%)', sqlerrm; end;
   begin perform app.owner_assign_group_admin('99000000-0000-0000-0000-000000000001','99000000-0000-0000-0000-0000000000b0','not-an-email','host_group_admin');
     raise exception 'FAIL(email): an invalid email was accepted';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(email): a malformed email is rejected (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(email): a malformed email is rejected (%)', sqlerrm; end;
   begin perform app.owner_assign_group_admin('99000000-0000-0000-0000-000000000001', gen_random_uuid(),'y@e.com','host_group_admin');
     raise exception 'FAIL(group): assignment to a nonexistent group was accepted';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(group): unknown host group rejected (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(group): unknown host group rejected (%)', sqlerrm; end;
 end $$;
 reset role;
 
@@ -109,13 +109,13 @@ select set_config('request.jwt.claims', json_build_object('sub','99110000-0000-0
 do $$ begin
   begin perform app.owner_create_host_group('99000000-0000-0000-0000-000000000001','custom','Sneaky');
     raise exception 'FAIL(authz): non-owner created a host group';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(authz): non-owner cannot create a group (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(authz): non-owner cannot create a group (%)', sqlerrm; end;
   begin perform app.owner_assign_group_admin('99000000-0000-0000-0000-000000000001','99000000-0000-0000-0000-0000000000b0','z@e.com','host_group_admin');
     raise exception 'FAIL(authz): non-owner assigned an admin';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(authz): non-owner cannot assign an admin (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(authz): non-owner cannot assign an admin (%)', sqlerrm; end;
   begin perform count(*) from app.owner_list_operators('99000000-0000-0000-0000-000000000001');
     raise exception 'FAIL(authz): non-owner listed operators';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(authz): non-owner cannot list operators (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(authz): non-owner cannot list operators (%)', sqlerrm; end;
 end $$;
 reset role;
 
@@ -125,10 +125,10 @@ select set_config('request.jwt.claims', json_build_object('sub','99110000-0000-0
 do $$ begin
   begin perform app.owner_create_host_group('99000000-0000-0000-0000-000000000001','custom','X');
     raise exception 'FAIL(iso): W2 owner created a group in W1';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(iso): W2 owner cannot create in W1 (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(iso): W2 owner cannot create in W1 (%)', sqlerrm; end;
   begin perform app.owner_assign_group_admin('99000000-0000-0000-0000-000000000001','99000000-0000-0000-0000-0000000000b0','z@e.com','host_group_admin');
     raise exception 'FAIL(iso): W2 owner assigned an admin in W1';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; raise notice 'OK(iso): W2 owner cannot assign in W1 (%)', sqlerrm; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; raise notice 'OK(iso): W2 owner cannot assign in W1 (%)', sqlerrm; end;
 end $$;
 reset role;
 
@@ -154,12 +154,12 @@ do $$ declare v_owner int; v_bride_admin uuid; v_couple uuid; begin
     perform app.owner_remove_operator_role('99000000-0000-0000-0000-000000000001',
       (select id from app.operator_role where wedding_id='99000000-0000-0000-0000-000000000001' and role='wedding_owner' limit 1));
     raise exception 'FAIL(remove): the wedding_owner role was removed';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 
   -- delete guard: the groom family still has admins attached -> refused
   begin perform app.owner_delete_host_group('99000000-0000-0000-0000-000000000001','99000000-0000-0000-0000-0000000000c0');
     raise exception 'FAIL(delete): deleted a family that still has admins';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 
   -- but an EMPTY group (the 'couple' one created earlier, no admins/finance/households) can be deleted
   select id into v_couple from app.host_group where wedding_id='99000000-0000-0000-0000-000000000001' and kind='couple' limit 1;
@@ -176,11 +176,11 @@ do $$ begin
   begin perform app.owner_create_host_group('99000000-0000-0000-0000-000000000001','custom','X');
     raise exception 'FAIL(grant): anon executed owner_create_host_group';
   exception when insufficient_privilege then raise notice 'OK(grant): anon cannot create groups';
-           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(grant): anon blocked (%)', sqlerrm; end if; end;
+           when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK(grant): anon blocked (%)', sqlerrm; end if; end;
   begin perform app.owner_assign_group_admin('99000000-0000-0000-0000-000000000001','99000000-0000-0000-0000-0000000000b0','z@e.com','host_group_admin');
     raise exception 'FAIL(grant): anon executed owner_assign_group_admin';
   exception when insufficient_privilege then raise notice 'OK(grant): anon cannot assign admins';
-           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(grant): anon blocked (%)', sqlerrm; end if; end;
+           when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK(grant): anon blocked (%)', sqlerrm; end if; end;
 end $$;
 reset role;
 

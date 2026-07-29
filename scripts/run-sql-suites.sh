@@ -11,6 +11,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# A caught synthetic `FAIL(scope): ...` must be re-raised. The narrower `FAIL:%` pattern does not match
+# parenthesized labels and can turn an actual exploit into a false green.
+if grep -R -n -F "sqlerrm like 'FAIL:%'" "$ROOT/supabase/tests"; then
+  echo "Unsafe SQL-test FAIL sentinel detected; use LIKE 'FAIL%'" >&2
+  exit 1
+fi
+
 SQL_SUITES=()
 while IFS= read -r suite; do
   SQL_SUITES+=("$suite")

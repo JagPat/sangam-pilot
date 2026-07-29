@@ -28,4 +28,8 @@ describe('postAuthDestination', () => {
   it('uses the guest schedule when no organizer section exists', () => {
     expect(postAuthDestination(undefined, [])).toBe('/schedule');
   });
+
+  it('sends a provisioned wedding creator without an existing role to setup', () => {
+    expect(postAuthDestination(null, [], true)).toBe('/host/setup');
+  });
 });

@@ -3,6 +3,7 @@ import { pageClient } from '@/lib/supabase/pageClient';
 import { getSetupData, type SetupWedding, type SetupEvent, type SetupFamily } from '@/lib/data/setup';
 import { createWedding, addVenue, addEvent, updateEvent } from './actions';
 import { HostNav } from '../HostNav';
+import { canRenderWeddingCreation, getCreatorAccess } from '@/lib/data/creator-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -238,8 +239,11 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
   const db = await pageClient();
   let weddings: SetupWedding[];
+  let canCreateWedding: boolean;
   try {
-    weddings = await getSetupData(db);
+    const [loadedWeddings, creator] = await Promise.all([getSetupData(db), getCreatorAccess(db)]);
+    weddings = loadedWeddings;
+    canCreateWedding = canRenderWeddingCreation(creator);
   } catch {
     return (
       <main className="sg-host">
@@ -260,7 +264,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           <div className={'sg-banner ' + (banner.kind === 'ok' ? 'is-ok' : 'is-err')}>{banner.text}</div>
         ) : null}
 
-        {weddings.length === 0 ? (
+        {weddings.length === 0 && canCreateWedding ? (
           <div>
             <div className="sg-pagehead">
               <h1>Create your wedding</h1>
@@ -271,13 +275,23 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
             </div>
             <CreateWeddingForm heading="New wedding" />
           </div>
+        ) : weddings.length === 0 ? (
+          <div className="sg-empty">
+            <h1 className="sg-empty__title">Wedding creation is not enabled</h1>
+            <p>
+              Your sign-in is working, but this account has not been approved to create client weddings. Ask a Sangam
+              platform administrator to enable event-manager onboarding for this email.
+            </p>
+          </div>
         ) : (
           <>
             {weddings.map((w) => <WeddingSetup key={w.weddingId} w={w} />)}
-            <details>
-              <summary className="sg-getdir">+ Create another wedding</summary>
-              <div style={{ marginTop: 12 }}><CreateWeddingForm heading="New wedding" intro="You’ll be its owner." /></div>
-            </details>
+            {canCreateWedding ? (
+              <details>
+                <summary className="sg-getdir">+ Create another wedding</summary>
+                <div style={{ marginTop: 12 }}><CreateWeddingForm heading="New wedding" intro="You’ll be its owner and event manager." /></div>
+              </details>
+            ) : null}
           </>
         )}
       </div>

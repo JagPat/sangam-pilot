@@ -3,6 +3,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getHostDashboard, type WeddingDashboard, type EventRollup, type SpecialDiet } from '@/lib/data/host';
 import { HostNav } from './HostNav';
+import { getCreatorAccess } from '@/lib/data/creator-access';
 
 export const dynamic = 'force-dynamic'; // per-request: reads the owner's session + owner-scoped rows.
 
@@ -194,8 +195,11 @@ export default async function HostPage() {
 
   const db = await pageClient();
   let dashboards: WeddingDashboard[];
+  let canCreateWedding: boolean;
   try {
-    dashboards = await getHostDashboard(db);
+    const [loadedDashboards, creator] = await Promise.all([getHostDashboard(db), getCreatorAccess(db)]);
+    dashboards = loadedDashboards;
+    canCreateWedding = creator.canCreateWedding;
   } catch {
     return (
       <main className="sg-host">
@@ -215,11 +219,17 @@ export default async function HostPage() {
         {dashboards.length === 0 ? (
           <div className="sg-empty">
             <h1 className="sg-empty__title">Organizer dashboard</h1>
-            <p>
-              You’re not set up as an organizer for any wedding yet. You can create one now — you’ll become its owner and
-              can add venues, events, and guests, all from here.
-            </p>
-            <Link href="/host/setup" className="sg-btn sg-btn--primary">Create a wedding →</Link>
+            {canCreateWedding ? (
+              <>
+                <p>You are approved to create a client wedding and manage its event operations.</p>
+                <Link href="/host/setup" className="sg-btn sg-btn--primary">Create a wedding →</Link>
+              </>
+            ) : (
+              <p>
+                Your sign-in is working, but this account has not been approved to create client weddings. Ask a Sangam
+                platform administrator to enable event-manager onboarding for this email.
+              </p>
+            )}
           </div>
         ) : (
           dashboards.map((w) => <WeddingBlock key={w.weddingId} w={w} />)

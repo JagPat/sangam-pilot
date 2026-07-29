@@ -15,7 +15,7 @@ function s(fd: FormData, k: string): string {
 function done(): never {
   revalidatePath('/host/groups');
   revalidatePath('/host');
-  revalidatePath('/host/finance');
+  revalidatePath('/host/cost-control');
   redirect('/host/groups?ok=1');
 }
 
@@ -103,7 +103,7 @@ export async function assignAdmin(fd: FormData): Promise<void> {
 
 export async function assignWeddingRole(fd:FormData):Promise<void>{
   const weddingId=s(fd,'weddingId'),email=s(fd,'email'),role=s(fd,'role');
-  if(!weddingId||!email||!['event_manager','finance_admin'].includes(role)) fail('admin');
+  if(!weddingId||!email||!['event_manager','cost_approver'].includes(role)) fail('admin');
   try{
     const app=(await serverClientRW()).schema('app');
     const {error}=await app.rpc('owner_assign_wedding_role',{p_wedding:weddingId,p_email:email,p_role:role});
