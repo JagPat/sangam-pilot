@@ -106,7 +106,7 @@ do $$ begin
     perform public.propose_rsvp_change('55555555-0000-0000-0000-00000000a061'::uuid,'accepted'::app.attendance_status);
     raise exception 'FAIL: unrelated member proposed for a guest they cannot act for';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: unrelated authenticated blocked from proposing (%)', sqlerrm;
   end;
 end $$;
@@ -117,7 +117,7 @@ do $$ begin
       values ('55555555-0000-0000-0000-00000000aa01','55555555-0000-0000-0000-00000000a061','declined');
     raise exception 'FAIL: authenticated wrote attendance directly';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: direct attendance write denied (%)', sqlerrm;
   end;
 end $$;
@@ -131,7 +131,7 @@ do $$ begin
     raise exception 'FAIL: anon executed a SECURITY DEFINER function';
   exception
     when insufficient_privilege then raise notice 'OK: anon cannot execute app.* (%)', sqlerrm;
-    when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK: anon blocked (%)', sqlerrm; end if;
+    when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK: anon blocked (%)', sqlerrm; end if;
   end;
 end $$;
 reset role;
@@ -144,7 +144,7 @@ do $$ begin
     perform public.propose_rsvp_change('55555555-0000-0000-0000-00000000a062'::uuid,'accepted'::app.attendance_status); -- CLOSED invitation
     raise exception 'FAIL: RSVP accepted against a closed invitation';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: closed-invitation RSVP rejected (%)', sqlerrm;
   end;
 end $$;
@@ -157,7 +157,7 @@ do $$ begin
     perform public.propose_rsvp_change('55555555-0000-0000-0000-00000000a061'::uuid,'accepted'::app.attendance_status);
     raise exception 'FAIL: expired-delegation proxy proposed';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: expired-delegation proxy blocked (%)', sqlerrm;
   end;
 end $$;
@@ -171,7 +171,7 @@ do $$ begin
     perform public.propose_rsvp_change('55555555-0000-0000-0000-00000000a063'::uuid,'accepted'::app.attendance_status);
     raise exception 'FAIL: RSVP accepted past the deadline';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: past-deadline RSVP rejected (%)', sqlerrm;
   end;
 end $$;
@@ -201,7 +201,7 @@ begin
     perform app.redeem_and_bind(v_raw, '55555555-0000-0000-0000-00000000a020', 'attacker@example.com');
     raise exception 'FAIL: redeemed with a non-matching verified contact';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
   end;
   select valid into v_valid from app.peek_access_link(v_raw);
   if not v_valid then raise exception 'FAIL: a wrong-contact attempt consumed the link'; end if;
@@ -213,7 +213,7 @@ begin
     perform app.redeem_and_bind(v_raw, '55555555-0000-0000-0000-00000000a030', 'guest-a021@example.com'); -- different account = reject
     raise exception 'FAIL: used link redeemed by a different account';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
   end;
   raise notice 'OK: redeem is recipient-bound (wrong contact rejected + not consumed), single-use, idempotent-by-account, conflict-rejecting';
 end $$;
@@ -248,7 +248,7 @@ do $$ begin
     perform app.bind_guest_account('55555555-0000-0000-0000-00000000aa01'::uuid, gen_random_uuid(), '55555555-0000-0000-0000-00000000a020'::uuid);
     raise exception 'FAIL: bind_guest_account accepted a nonexistent guest';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: bind rejects unknown guest (%)', sqlerrm;
   end;
 end $$;
@@ -263,7 +263,7 @@ do $$ begin
     raise exception 'FAIL: two pending proposals allowed for one invitation_guest';
   exception
     when unique_violation then raise notice 'OK: a second pending proposal is rejected by the partial unique index';
-    when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK: rejected (%)', sqlerrm; end if;
+    when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK: rejected (%)', sqlerrm; end if;
   end;
 end $$;
 
@@ -300,7 +300,7 @@ do $$ declare pid uuid; begin
     perform public.confirm_rsvp_change(pid);
     raise exception 'FAIL: owner confirmed a delegate''s proposal (cross-actor attribution)';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     raise notice 'OK: cross-actor confirm rejected (%)', sqlerrm;
   end;
 end $$;

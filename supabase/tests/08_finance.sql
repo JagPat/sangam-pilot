@@ -18,7 +18,7 @@ end $$;
 set local role anon;
 do $$ begin
   begin perform count(*) from app.finance_expense; raise exception 'FAIL(anon): private finance readable';
-  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 

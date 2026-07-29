@@ -145,7 +145,7 @@ do $$ begin
     perform app.link_signed_in_account('6a110000-0000-0000-0000-0000000000a3');
     raise exception 'FAIL(grant): anon executed the service-only linker';
   exception when insufficient_privilege then raise notice 'OK(grant): anon cannot execute link_signed_in_account';
-           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(grant): anon blocked (%)', sqlerrm; end if;
+           when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK(grant): anon blocked (%)', sqlerrm; end if;
   end;
 end $$;
 reset role;
@@ -156,7 +156,7 @@ do $$ begin
     perform app.link_signed_in_account('6a110000-0000-0000-0000-0000000000a3');
     raise exception 'FAIL(grant): authenticated executed the service-only linker';
   exception when insufficient_privilege then raise notice 'OK(grant): authenticated cannot execute link_signed_in_account';
-           when others then if sqlerrm like 'FAIL:%' then raise; else raise notice 'OK(grant): authenticated blocked (%)', sqlerrm; end if;
+           when others then if sqlerrm like 'FAIL%' then raise; else raise notice 'OK(grant): authenticated blocked (%)', sqlerrm; end if;
   end;
 end $$;
 reset role;

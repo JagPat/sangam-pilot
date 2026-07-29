@@ -46,7 +46,7 @@ do $$ declare c uuid; begin
     perform app.decide_cost_commitment('21000000-0000-0000-0000-000000000101',c,'approved','manager self approval');
     raise exception 'FAIL(commitment): manager approved a commitment';
   exception when insufficient_privilege then null;
-            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+            when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 
@@ -66,7 +66,7 @@ do $$ declare i uuid; begin
     perform app.verify_cost_invoice('21000000-0000-0000-0000-000000000101',i,'manager verification');
     raise exception 'FAIL(invoice): manager verified an invoice';
   exception when insufficient_privilege then null;
-            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+            when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 
@@ -82,7 +82,7 @@ do $$ declare p uuid; begin
       70000,'2026-09-11','bank_transfer','OVERPAY');
     raise exception 'FAIL(payment): overpayment was accepted';
   exception when check_violation then null;
-            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+            when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 

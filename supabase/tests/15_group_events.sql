@@ -140,7 +140,7 @@ do $$ declare v_bride uuid := current_setting('ev.bride'); nm text; begin
     );
     raise exception 'FAIL(shared-function): bride admin renamed a function also used by a groom event';
   exception when others then
-    if sqlerrm like 'FAIL:%' then raise; end if;
+    if sqlerrm like 'FAIL%' then raise; end if;
     if sqlerrm <> 'event name/type is shared with an event outside your scope' then raise; end if;
   end;
   select f.name into nm

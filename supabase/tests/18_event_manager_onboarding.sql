@@ -57,6 +57,23 @@ end $$;
 select set_config('request.jwt.claims',json_build_object('sub','18000000-0000-0000-0000-000000000004')::text,true);
 do $$ begin
   begin
+    update app.account set can_create_wedding=true where id=app.current_account_id();
+    raise exception 'FAIL(escalation): ordinary user enabled wedding creation on their own account';
+  exception when insufficient_privilege then null;
+            when others then if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  begin
+    update app.account set status='active',auth_user_id='18000000-0000-0000-0000-000000000001'
+      where id=app.current_account_id();
+    raise exception 'FAIL(identity): ordinary user changed protected account identity/status';
+  exception when insufficient_privilege then null;
+            when others then if sqlerrm like 'FAIL%' then raise; end if;
+  end;
+  update app.account set preferred_language='gu' where id=app.current_account_id();
+  if (select preferred_language from app.account where id=app.current_account_id())<>'gu' then
+    raise exception 'FAIL(profile): safe preference update was blocked';
+  end if;
+  begin
     perform app.super_admin_set_wedding_creator('ordinary@example.test',true);
     raise exception 'FAIL(admin): ordinary user provisioned a wedding creator';
   exception when insufficient_privilege then null;

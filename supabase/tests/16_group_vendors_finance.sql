@@ -51,7 +51,7 @@ do $$ declare n int; begin
   raise notice 'OK(bride-vendor): read-only — cannot add vendors';
 
   begin perform count(*) from app.finance_expense; raise exception 'FAIL(finance): family admin read retired private finance';
-  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 
 -- ===== groom admin: mirror isolation on vendors =====

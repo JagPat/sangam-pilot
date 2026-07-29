@@ -27,7 +27,7 @@ do $$ begin
    then raise exception 'FAIL(manager): Cost Control capability missing'; end if;
  if app.is_cost_approver('17000000-0000-0000-0000-000000000101') then raise exception 'FAIL(manager): inherited approval authority'; end if;
  begin perform count(*) from app.finance_expense; raise exception 'FAIL(manager): private finance readable';
- exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+ exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 
 select set_config('request.jwt.claims',json_build_object('sub','17000000-0000-0000-0000-000000000002')::text,true);
@@ -43,7 +43,7 @@ do $$ begin
  perform app.owner_assign_wedding_role('17000000-0000-0000-0000-000000000101','new-approver@example.test','cost_approver');
  begin perform app.owner_assign_wedding_role('17000000-0000-0000-0000-000000000101','legacy@example.test','finance_admin');
    raise exception 'FAIL(assign): new legacy finance role allowed';
- exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+ exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 

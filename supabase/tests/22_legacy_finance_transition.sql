@@ -36,12 +36,12 @@ set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','22000000-0000-0000-0000-000000000001')::text,true);
 do $$ begin
   begin perform count(*) from app.finance_cost_item; raise exception 'FAIL(seal): authenticated read retired operational finance';
-  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin perform count(*) from app.finance_expense; raise exception 'FAIL(seal): authenticated read private family finance';
-  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin perform app.manager_add_cost('22000000-0000-0000-0000-000000000101','Sneaky','misc',1,'INR',null,'planned',null,null);
     raise exception 'FAIL(seal): authenticated wrote retired finance';
-  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 

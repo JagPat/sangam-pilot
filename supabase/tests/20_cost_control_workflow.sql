@@ -43,7 +43,7 @@ do $$ declare v_item uuid; v_est uuid; begin
     perform app.save_cost_estimate_draft('20000000-0000-0000-0000-000000000101',v_item,v_est,
       jsonb_build_object('subtotal',1,'tax_rate',0,'currency_code','INR'));
     raise exception 'FAIL(freeze): submitted estimate was edited';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   perform set_config('sangam.cost_item',v_item::text,false);
   perform set_config('sangam.estimate',v_est::text,false);
 end $$;
@@ -57,7 +57,7 @@ do $$ declare v_est uuid:=current_setting('sangam.estimate')::uuid; begin
   begin
     perform app.decide_cost_estimate('20000000-0000-0000-0000-000000000101',v_est,'approved','stale retry','under_review');
     raise exception 'FAIL(stale): a stale second decision succeeded';
-  exception when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+  exception when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 
@@ -100,7 +100,7 @@ do $$ declare v_item uuid; v_est uuid; begin
     perform app.decide_cost_estimate('20000000-0000-0000-0000-000000000101',v_est,'approved','self approval','under_review');
     raise exception 'FAIL(self-approval): submitter approved own estimate';
   exception when insufficient_privilege then null;
-            when others then if sqlerrm like 'FAIL:%' then raise; end if; end;
+            when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
 

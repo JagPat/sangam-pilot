@@ -26,6 +26,13 @@ try {
   const signedIn = await browser.auth.signInWithPassword({ email, password });
   if (signedIn.error || !signedIn.data.session) throw signedIn.error ?? new Error('real GoTrue session missing');
 
+  const capabilityEscalation = await browser.schema('app').from('account')
+    .update({ can_create_wedding: false }).eq('auth_user_id', authUserId);
+  if (!capabilityEscalation.error) throw new Error('authenticated account holder changed protected creator capability');
+  const preferenceUpdate = await browser.schema('app').from('account')
+    .update({ preferred_language: 'gu' }).eq('auth_user_id', authUserId);
+  if (preferenceUpdate.error) throw preferenceUpdate.error;
+
   const made = await browser.schema('app').rpc('create_wedding', {
     p_title: 'Supabase integration gate', p_couple: null, p_tz: 'Asia/Kolkata', p_start: null, p_end: null,
   });
