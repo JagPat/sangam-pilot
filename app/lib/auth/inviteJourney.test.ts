@@ -96,5 +96,8 @@ describe('recipient-bound invitation journey contract', () => {
     expect(localVerifier).toContain('SUPABASE_ANON_KEY: anonKey');
     expect(localVerifier).toContain('SUPABASE_SERVICE_ROLE_KEY: serviceKey');
     expect(localVerifier).toContain('PUBLIC_SITE_URL: baseUrl');
+    expect(localVerifier.indexOf('const baseUrl = `http://127.0.0.1:${port}`')).toBeLessThan(
+      localVerifier.indexOf('PUBLIC_SITE_URL: baseUrl'),
+    );
   });
 });

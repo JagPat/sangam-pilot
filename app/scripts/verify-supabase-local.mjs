@@ -35,6 +35,7 @@ async function sessionCookieHeader(session) {
 
 async function startVerifierApp() {
   const port = 34000 + Math.floor(Math.random() * 1000);
+  const baseUrl = `http://127.0.0.1:${port}`;
   appServer = spawn('npm', ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', String(port)], {
     cwd: process.cwd(),
     env: {
@@ -53,7 +54,6 @@ async function startVerifierApp() {
     // intentionally discards child output and reports only its own non-sensitive pass/fail messages.
     stdio: 'ignore',
   });
-  const baseUrl = `http://127.0.0.1:${port}`;
   for (let attempt = 0; attempt < 80; attempt += 1) {
     try {
       const response = await fetch(`${baseUrl}/api/health`);
