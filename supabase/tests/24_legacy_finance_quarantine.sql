@@ -12,7 +12,9 @@ values ('24000000-0000-0000-0000-000000000101','24aa0000-0000-0000-0000-00000000
 insert into app.operator_role(wedding_id,account_id,role,host_group_id)
 values ('24000000-0000-0000-0000-000000000101','24aa0000-0000-0000-0000-000000000001','event_manager',null);
 insert into app.cost_centre(id,wedding_id,template_key,name)
-values ('24000000-0000-0000-0000-000000000201','24000000-0000-0000-0000-000000000101','legacy_fixture','Legacy fixture');
+values
+  ('24000000-0000-0000-0000-000000000201','24000000-0000-0000-0000-000000000101','legacy_operational','Imported official costs'),
+  ('24000000-0000-0000-0000-000000000202','24000000-0000-0000-0000-000000000101','official_costs','Official costs');
 
 -- Row 301 models a pre-0044 converted mapping and its generated Cost Control copy.
 -- Row 302 is intentionally unlinked: its private funding language alone must not be copied into Cost Control.
@@ -21,11 +23,28 @@ values
   ('24000000-0000-0000-0000-000000000301','24000000-0000-0000-0000-000000000101','Official catering target','Venue proposal pending','food',350000,'INR','planned','24aa0000-0000-0000-0000-000000000001'),
   ('24000000-0000-0000-0000-000000000302','24000000-0000-0000-0000-000000000101','Bride family contribution','Settled from the family private account','misc',125000,'INR','planned','24aa0000-0000-0000-0000-000000000001');
 insert into app.cost_item(id,wedding_id,cost_centre_id,title,lifecycle_state,created_by_account_id)
-values ('24000000-0000-0000-0000-000000000401','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000201','Official catering target','planning','24aa0000-0000-0000-0000-000000000001');
+values
+  ('24000000-0000-0000-0000-000000000401','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000201','Official catering target','planning','24aa0000-0000-0000-0000-000000000001'),
+  ('24000000-0000-0000-0000-000000000402','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000201','Manual floral contingency','planning','24aa0000-0000-0000-0000-000000000001');
 insert into app.cost_estimate_version(id,wedding_id,cost_item_id,version_number,origin,subtotal,tax_rate,currency_code,remarks,state,created_by_account_id,submitted_by_account_id)
 values ('24000000-0000-0000-0000-000000000501','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000401',1,'legacy_import',350000,0,'INR','Imported legacy fixture','submitted','24aa0000-0000-0000-0000-000000000001','24aa0000-0000-0000-0000-000000000001');
 insert into app.legacy_cost_control_conversion(legacy_finance_cost_item_id,wedding_id,cost_item_id,outcome)
 values ('24000000-0000-0000-0000-000000000301','24000000-0000-0000-0000-000000000101','24000000-0000-0000-0000-000000000401','converted');
+
+-- The all-migrations runner has already replaced the old converter, so this deployed-state fixture
+-- proves the equivalent pre-0044 exposure directly: both the generated copy and its import marker are readable.
+set role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','24000000-0000-0000-0000-000000000001')::text,false);
+do $$ begin
+  if not exists(select 1 from app.cost_item where id='24000000-0000-0000-0000-000000000401') then
+    raise exception 'FAIL(precondition): event manager could not read the generated legacy Cost Control copy';
+  end if;
+  if not exists(select 1 from app.cost_centre where id='24000000-0000-0000-0000-000000000201'
+    and template_key='legacy_operational' and name='Imported official costs') then
+    raise exception 'FAIL(precondition): event manager could not read the legacy conversion marker';
+  end if;
+end $$;
+reset role;
 
 -- Reapply the deliberately rerunnable quarantine migration to exercise the historical upgrade state.
 \ir ../migrations/20260729110000_0044_legacy_finance_quarantine.sql
@@ -70,6 +89,14 @@ do $$ begin
     raise exception 'FAIL(privacy): authenticated read the legacy finance inventory';
   exception when insufficient_privilege then null; when others then raise;
   end;
+  if exists(select 1 from app.cost_centre where template_key ilike '%legacy%' or name ilike '%legacy%'
+    or template_key ilike '%import%' or name ilike '%import%') then
+    raise exception 'FAIL(privacy): event manager inferred legacy conversion from a Cost Control centre';
+  end if;
+  if not exists(select 1 from app.cost_item where id='24000000-0000-0000-0000-000000000402'
+    and cost_centre_id='24000000-0000-0000-0000-000000000202') then
+    raise exception 'FAIL(quarantine): collision handling deleted or detached a manual Cost Control item';
+  end if;
 end $$;
 reset role;
 
