@@ -13,7 +13,7 @@ export function safeInternalPath(value: string | null | undefined, fallback = '/
   if (/[\\\u0000-\u001f\u007f]/.test(decoded) || decoded.startsWith('//')) return fallback;
   try {
     const parsed = new URL(value, INTERNAL_ORIGIN);
-    if (parsed.origin !== INTERNAL_ORIGIN) return fallback;
+    if (parsed.origin !== INTERNAL_ORIGIN || parsed.pathname.startsWith('//')) return fallback;
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch {
     return fallback;

@@ -9,6 +9,7 @@ const authCallback = readFileSync(resolve(appRoot, 'app/auth/callback/route.ts')
 const accessPage = readFileSync(resolve(appRoot, 'app/access/page.tsx'), 'utf8');
 const accessActions = readFileSync(resolve(appRoot, 'app/access/actions.ts'), 'utf8');
 const testRedeemRoute = readFileSync(resolve(appRoot, 'app/api/test/invite-redeem/[token]/route.ts'), 'utf8');
+const localVerifier = readFileSync(resolve(appRoot, 'scripts/verify-supabase-local.mjs'), 'utf8');
 const manageActions = readFileSync(resolve(appRoot, 'app/host/manage/actions.ts'), 'utf8');
 const managePage = readFileSync(resolve(appRoot, 'app/host/manage/page.tsx'), 'utf8');
 
@@ -26,6 +27,8 @@ describe('recipient-bound invitation journey contract', () => {
     expect(authCallback).toContain("withSafeNext('/login?error=callback', nextParam)");
     expect(authCallback).toContain("withSafeNext('/access?reason=account_link_failed', nextParam)");
     expect(accessPage).toContain('name="next"');
+    expect(accessPage).toContain("withSafeNext('/access', safeNext)");
+    expect(accessActions).toContain("withSafeNext('/access', next)");
     expect(accessActions).toContain('postAuthDestination(next, nav.sections, creator.canCreateWedding)');
   });
 
@@ -43,5 +46,14 @@ describe('recipient-bound invitation journey contract', () => {
     expect(testRedeemRoute).toContain("process.env.SANGAM_REAL_AUTH_TEST === '1'");
     expect(testRedeemRoute).toContain('getVerifiedUser()');
     expect(testRedeemRoute).toContain('redeemInviteForVerifiedUser(token, user)');
+  });
+
+  it('proves intended-account replay is idempotent before testing cross-account replay denial', () => {
+    expect(localVerifier).toContain('const intendedReplay = await fetch(redeemUrl');
+    expect(localVerifier).toContain('headers: { cookie: intendedCookie }');
+    expect(localVerifier).toContain("const crossAccountReplay = await admin.schema('app').rpc('redeem_and_bind'");
+    expect(localVerifier).toContain('p_account: wrongAccount.data.id');
+    expect(localVerifier).toContain('p_verified_contact: intendedEmail');
+    expect(localVerifier).toContain('/link already used/i');
   });
 });

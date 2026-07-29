@@ -24,6 +24,11 @@ describe('safeInternalPath', () => {
   it('returns only the canonical internal path, query, and fragment', () => {
     expect(safeInternalPath('/schedule/../invite?day=2#rsvp', '/schedule')).toBe('/invite?day=2#rsvp');
   });
+
+  it.each(['/.//evil.example', '/%2e//evil.example', '/%2e%2e//evil.example', '/a/..//evil.example'])(
+    'rejects canonicalized scheme-relative path %s',
+    (value) => expect(safeInternalPath(value, '/schedule')).toBe('/schedule'),
+  );
 });
 
 describe('postAuthDestination', () => {

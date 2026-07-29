@@ -247,8 +247,31 @@ try {
   if (boundGuest.error || !boundGuest.data?.self_account_id) {
     throw boundGuest.error ?? new Error('intended recipient was not bound by the production redemption path');
   }
-  const replay = await fetch(redeemUrl, { method: 'POST', headers: { cookie: wrongContactCookie } });
-  if (replay.status !== 403) throw new Error('used invite was redeemed by another account');
+  const intendedReplay = await fetch(redeemUrl, { method: 'POST', headers: { cookie: intendedCookie } });
+  if (!intendedReplay.ok || !(await intendedReplay.json()).ok) {
+    throw new Error('intended recipient replay was not idempotent');
+  }
+
+  // The real wrong-contact session above is denied before the database reaches the used-link branch.
+  // Reuse that session's linked account with the intended contact to make the cross-account replay
+  // assertion reason-specific: the RPC must now reject it because another account already used the link.
+  const wrongAccount = await admin
+    .schema('app')
+    .from('account')
+    .select('id')
+    .eq('auth_user_id', wrongContactAuthUserId)
+    .single();
+  if (wrongAccount.error || !wrongAccount.data) {
+    throw wrongAccount.error ?? new Error('wrong-contact session was not linked to an app account');
+  }
+  const crossAccountReplay = await admin.schema('app').rpc('redeem_and_bind', {
+    p_raw: rawInvite,
+    p_account: wrongAccount.data.id,
+    p_verified_contact: intendedEmail,
+  });
+  if (!crossAccountReplay.error || !/link already used/i.test(crossAccountReplay.error.message ?? '')) {
+    throw new Error('used invite did not reject a different account specifically');
+  }
   const consumed = await fetch(inviteUrl, { redirect: 'manual' });
   if (!consumed.ok || !(await consumed.text()).includes('invalid or has already been used')) {
     throw new Error('redeemed invite remained valid');

@@ -12,7 +12,7 @@ import { postAuthDestination, safeInternalPath, withSafeNext } from '@/lib/auth/
 export async function retryAccountSetup(formData: FormData): Promise<void> {
   const requestedNext = String(formData.get('next') ?? '');
   const next = requestedNext ? safeInternalPath(requestedNext, '/schedule') : null;
-  const user = await requireVerifiedUser('/access');
+  const user = await requireVerifiedUser(next ? withSafeNext('/access', next) : '/access');
   const result = await linkSignedInAccount(user.id);
   if (!result.ok) redirect(withSafeNext('/access?reason=account_link_failed', next));
 
