@@ -18,7 +18,7 @@ const ROLES: { value: string; label: string }[] = [
   { value: 'host_group_admin', label: 'Family admin' },
   { value: 'co_host', label: 'Co-host (view only)' },
 ];
-const ROLE_LABEL: Record<string, string> = { host_group_admin: 'Family admin', co_host: 'Co-host', wedding_owner: 'Wedding administrator', event_manager: 'Event manager', finance_admin: 'Finance administrator' };
+const ROLE_LABEL: Record<string, string> = { host_group_admin: 'Family admin', co_host: 'Co-host', wedding_owner: 'Wedding administrator', event_manager: 'Event manager', cost_approver: 'Cost approver', finance_admin: 'Legacy finance role' };
 
 const MESSAGES: Record<string, { kind: 'ok' | 'err'; text: string }> = {
   '1': { kind: 'ok', text: 'Saved.' },
@@ -145,10 +145,9 @@ function WeddingGroups({ w }: { w: GroupsWedding }) {
       <div className="sg-pagehead">
         <h1>Families &amp; admins · {w.title}</h1>
         <p>
-          Set up the two sides of the wedding (bride’s and groom’s families) and give each a family admin. Admins can see
-          their own family’s finances and scope; the finance screen groups every expense and split by these families.
+          Set up the two sides of the wedding (bride’s and groom’s families) and give each a family admin.
         </p>
-        <p>Wedding administration, event operations, and private finance are separate roles. Appointing a finance administrator does not reveal family finance to the event manager.</p>
+        <p>Wedding administration, event operations, and cost approval are separate roles. Cost Control contains official wedding costs only; it never records family contributions or private balances.</p>
       </div>
 
       <section className="sg-section"><h2>Wedding-wide administrators</h2>
@@ -156,14 +155,14 @@ function WeddingGroups({ w }: { w: GroupsWedding }) {
         <form action={assignWeddingRole} className="sg-formrow">
           <input type="hidden" name="weddingId" value={w.weddingId}/>
           <label className="sg-field"><span className="sg-label">Email</span><input className="sg-input" type="email" name="email" required placeholder="person@example.com"/></label>
-          <label className="sg-field"><span className="sg-label">Role</span><select className="sg-select" name="role"><option value="event_manager">Event manager</option><option value="finance_admin">Finance administrator</option></select></label>
+          <label className="sg-field"><span className="sg-label">Role</span><select className="sg-select" name="role"><option value="event_manager">Event manager</option><option value="cost_approver">Cost approver</option></select></label>
           <div className="sg-field"><span className="sg-label">&nbsp;</span><button className="sg-btn sg-btn--primary" type="submit">Appoint administrator</button></div>
         </form>
       </section>
 
       {w.groups.length === 0 ? (
         <div className="sg-empty">
-          <p>No families yet. Add the bride’s and groom’s families to unlock the two-family model and finance splits.</p>
+          <p>No families yet. Add the bride’s and groom’s families to unlock family-scoped guest and event coordination.</p>
         </div>
       ) : (
         w.groups.map((g) => <FamilyCard key={g.id} weddingId={w.weddingId} g={g} />)

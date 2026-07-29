@@ -19,14 +19,12 @@ export const OWNER_SECTIONS: NavSection[] = [
   { href: '/host/vendors', label: 'Vendors', key: 'vendors' },
 ];
 
-const COSTS_SECTION: NavSection = { href: '/host/costs', label: 'Costs', key: 'costs' };
-const FINANCE_SECTION: NavSection = { href: '/host/finance', label: 'Private finance', key: 'finance' };
+const COST_CONTROL_SECTION: NavSection = { href: '/host/cost-control', label: 'Cost Control', key: 'cost-control' };
 const PLATFORM_SECTION: NavSection = { href: '/host/platform', label: 'Platform', key: 'platform' };
 const FAMILY_SECTIONS: NavSection[] = [
   { href: '/host/manage', label: 'Guests', key: 'manage' },
   { href: '/host/events', label: 'Events', key: 'events' },
   { href: '/host/stay-overview', label: 'Stay & travel', key: 'stay-overview' },
-  { href: '/host/budget', label: 'Finance & vendors', key: 'budget' },
 ];
 
 export function navigationForRoles(
@@ -40,12 +38,12 @@ export function navigationForRoles(
   });
   if (rs.has('wedding_owner')) add(OWNER_SECTIONS);
   if (rs.has('host_group_admin')) add(FAMILY_SECTIONS);
-  if (rs.has('event_manager')) add([COSTS_SECTION]);
-  if (rs.has('finance_admin')) add([FINANCE_SECTION]);
+  if (rs.has('event_manager') || rs.has('cost_approver')) add([COST_CONTROL_SECTION]);
   if (isPlatformSuperAdmin) add([PLATFORM_SECTION]);
   const roleLabel = isPlatformSuperAdmin ? 'Platform administrator'
     : rs.has('event_manager') ? 'Event manager'
-    : rs.has('finance_admin') ? 'Finance administrator'
+    : rs.has('cost_approver') ? 'Cost approver'
+    : rs.has('finance_admin') ? 'Legacy finance role'
     : rs.has('wedding_owner') ? 'Wedding administrator'
     : rs.has('host_group_admin') ? 'Family admin'
     : rs.has('co_host') ? 'Co-host (view only)' : null;

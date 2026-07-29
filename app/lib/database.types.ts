@@ -40,6 +40,15 @@ type FinanceAllocationRow = { id: string; wedding_id: string; expense_id: string
 type FinanceNetPositionRow = { wedding_id: string; host_group_id: string; currency_code: string; paid_amount: number; allocated_amount: number; net_position: number };
 type FinanceCostItemRow = { id: string; wedding_id: string; engagement_id: string | null; description: string; category: string; amount: number; currency_code: string; due_date: string | null; payment_status: string; paid_at: string | null; operational_note: string | null; created_by_account_id: string | null; updated_by_account_id: string | null; created_at: string; updated_at: string };
 type FinanceFundingStatusRow = { wedding_id: string; currency_code: string; status: string; updated_at: string };
+type CostCentreRow = { id: string; wedding_id: string; parent_id: string | null; template_key: string | null; name: string; sort_order: number; active: boolean; created_at: string; updated_at: string };
+type CostItemRow = { id: string; wedding_id: string; cost_centre_id: string; event_instance_id: string | null; engagement_id: string | null; title: string; description: string | null; lifecycle_state: string; decision_owner_account_id: string | null; decision_due_at: string | null; created_by_account_id: string; created_at: string; updated_at: string };
+type CostEstimateRow = { id: string; wedding_id: string; cost_item_id: string; version_number: number; origin: string; scope_included: string | null; scope_excluded: string | null; quantity: number | null; unit: string | null; unit_rate: number | null; subtotal: number; tax_rate: number; tax_amount: number; total: number; currency_code: string; suggested_engagement_id: string | null; alternative: string | null; saving_proposal: string | null; dependency: string | null; remarks: string | null; decision_due_at: string | null; state: string; created_by_account_id: string; submitted_by_account_id: string | null; created_at: string; submitted_at: string | null };
+type CostDecisionRow = { id: string; wedding_id: string; cost_item_id: string; estimate_version_id: string; decision: string; actor_account_id: string; previous_state: string; resulting_state: string; reason: string | null; created_at: string };
+type CostCommitmentRow = { id: string; wedding_id: string; cost_item_id: string; approved_estimate_id: string; engagement_id: string | null; quote_reference: string | null; subtotal: number; tax_amount: number; total: number; currency_code: string; commitment_date: string | null; state: string; proposed_by_account_id: string; approved_by_account_id: string | null; decision_reason: string | null; created_at: string; decided_at: string | null };
+type CostInvoiceRow = { id: string; wedding_id: string; cost_item_id: string; commitment_id: string | null; invoice_reference: string; subtotal: number; tax_rate: number; tax_amount: number; total: number; currency_code: string; due_date: string | null; state: string; received_by_account_id: string; verified_by_account_id: string | null; verification_reason: string | null; created_at: string; verified_at: string | null };
+type CostPaymentRow = { id: string; wedding_id: string; invoice_id: string; amount: number; paid_on: string; method: string; official_reference: string | null; recorded_by_account_id: string; voided_at: string | null; voided_by_account_id: string | null; void_reason: string | null; created_at: string };
+type CostControlSummaryRow = { wedding_id: string; currency_code: string; approved_estimate_total: number; committed_total: number; invoiced_total: number; paid_total: number };
+type CostControlAttentionRow = { wedding_id: string; cost_item_id: string; attention_kind: string; due_at: string; label: string };
 type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
 type EngagementRow = { id: string; wedding_id: string; vendor_id: string; event_instance_id: string | null; state: string; role_title: string | null; blurb: string | null; quote_amount: number | null; quote_currency: string | null; notes: string | null; created_at: string; updated_at: string };
 type GuestDietaryProfileRow = { id: string; wedding_id: string; guest_id: string; category: string; jain_strictness: string | null; no_onion_garlic: boolean; fasting_days: string[]; allergies: string | null; created_at: string };
@@ -111,6 +120,13 @@ export type Database = {
       finance_expense: { Row: FinanceExpenseRow; Insert: Partial<FinanceExpenseRow>; Update: Partial<FinanceExpenseRow>; Relationships: [] };
       finance_expense_allocation: { Row: FinanceAllocationRow; Insert: Partial<FinanceAllocationRow>; Update: Partial<FinanceAllocationRow>; Relationships: [] };
       finance_cost_item: { Row: FinanceCostItemRow; Insert: Partial<FinanceCostItemRow>; Update: Partial<FinanceCostItemRow>; Relationships: [] };
+      cost_centre: { Row: CostCentreRow; Insert: Partial<CostCentreRow>; Update: Partial<CostCentreRow>; Relationships: [] };
+      cost_item: { Row: CostItemRow; Insert: Partial<CostItemRow>; Update: Partial<CostItemRow>; Relationships: [] };
+      cost_estimate_version: { Row: CostEstimateRow; Insert: Partial<CostEstimateRow>; Update: Partial<CostEstimateRow>; Relationships: [] };
+      cost_decision: { Row: CostDecisionRow; Insert: Partial<CostDecisionRow>; Update: Partial<CostDecisionRow>; Relationships: [] };
+      cost_commitment: { Row: CostCommitmentRow; Insert: Partial<CostCommitmentRow>; Update: Partial<CostCommitmentRow>; Relationships: [] };
+      cost_invoice: { Row: CostInvoiceRow; Insert: Partial<CostInvoiceRow>; Update: Partial<CostInvoiceRow>; Relationships: [] };
+      cost_payment: { Row: CostPaymentRow; Insert: Partial<CostPaymentRow>; Update: Partial<CostPaymentRow>; Relationships: [] };
       vendor: { Row: VendorRow; Insert: Partial<VendorRow>; Update: Partial<VendorRow>; Relationships: [] };
       engagement: { Row: EngagementRow; Insert: Partial<EngagementRow>; Update: Partial<EngagementRow>; Relationships: [] };
       guest_dietary_profile: { Row: GuestDietaryProfileRow; Insert: Partial<GuestDietaryProfileRow>; Update: Partial<GuestDietaryProfileRow>; Relationships: [] };
@@ -133,6 +149,8 @@ export type Database = {
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
       finance_net_position: { Row: FinanceNetPositionRow; Relationships: [] };
       finance_funding_status: { Row: FinanceFundingStatusRow; Relationships: [] };
+      cost_control_summary: { Row: CostControlSummaryRow; Relationships: [] };
+      cost_control_attention: { Row: CostControlAttentionRow; Relationships: [] };
     };
     Functions: {
       current_account_can_create_wedding: {
@@ -285,6 +303,18 @@ export type Database = {
         Returns: undefined;
       };
       owner_assign_wedding_role: { Args: { p_wedding:string; p_email:string; p_role:string }; Returns:string };
+      initialize_cost_control: { Args: { p_wedding:string }; Returns:number };
+      create_cost_item: { Args: { p_wedding:string; p_centre:string; p_title:string; p_description:string|null; p_event:string|null; p_engagement:string|null; p_decision_due:string|null }; Returns:string };
+      save_cost_estimate_draft: { Args: { p_wedding:string; p_item:string; p_estimate:string|null; p_input:Json }; Returns:string };
+      submit_cost_estimate: { Args: { p_wedding:string; p_estimate:string }; Returns:undefined };
+      begin_cost_review: { Args: { p_wedding:string; p_estimate:string }; Returns:undefined };
+      decide_cost_estimate: { Args: { p_wedding:string; p_estimate:string; p_decision:string; p_reason:string; p_expected_state:string }; Returns:undefined };
+      propose_cost_commitment: { Args: { p_wedding:string; p_item:string; p_estimate:string; p_engagement:string|null; p_quote_reference:string|null; p_commitment_date:string|null }; Returns:string };
+      decide_cost_commitment: { Args: { p_wedding:string; p_commitment:string; p_decision:string; p_reason:string }; Returns:undefined };
+      record_cost_invoice: { Args: { p_wedding:string; p_item:string; p_commitment:string|null; p_reference:string; p_subtotal:number; p_tax_rate:number; p_currency:string; p_due_date:string|null }; Returns:string };
+      verify_cost_invoice: { Args: { p_wedding:string; p_invoice:string; p_reason:string }; Returns:undefined };
+      record_cost_payment: { Args: { p_wedding:string; p_invoice:string; p_amount:number; p_paid_on:string; p_method:string; p_reference:string|null }; Returns:string };
+      void_cost_payment: { Args: { p_wedding:string; p_payment:string; p_reason:string }; Returns:undefined };
       // Owner-gated read: operators + their email (which account RLS otherwise hides).
       owner_list_operators: {
         Args: { p_wedding: string };
