@@ -119,10 +119,18 @@ with the email on their account; the schedule + RSVP then work. (Automated invit
 flag per ADR-1/2.)
 
 ## 7. Ongoing
-Push to `main` → CI runs the release gate + build → on green, Coolify auto-deploys. Schema changes are new
-files in `supabase/migrations/` applied with `supabase db push` (CI gates them first). Roll back in Coolify
-by redeploying a previous commit; roll back a migration with a new down-migration (never edit an applied
-one).
+Delivery uses one bounded loop: open a pull request, let all three CI gates run, resolve supported P0/P1
+findings using `CLAUDE_REVIEW.md`, merge, apply pending migrations, and let Coolify deploy `main`. The
+`Live smoke` workflow then polls `https://sangam.vitan.in`, checks its health/configuration, checks public
+pages for retired finance language, and confirms the retired finance URLs fail closed for anonymous users.
+
+Schema changes are new files in `supabase/migrations/` applied with `supabase db push` (CI gates them first).
+Roll back in Coolify by redeploying a previous commit; roll back a migration with a new forward corrective
+migration (never edit an applied one).
+
+The database push cannot run in GitHub until repository secrets for the managed Supabase project exist.
+Until those are configured, the release operator runs `supabase link --project-ref <actual-20-character-ref>`
+and `supabase db push` after CI succeeds. Never paste the literal placeholder `YOUR_SUPABASE_PROJECT_REF`.
 
 ## 8. The strong (real-auth) gate — mandatory before invite exchange
 On any Docker-enabled machine:

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:session": "node scripts/verify-session-persistence.mjs",
-    "verify:supabase-local": "node scripts/verify-supabase-local.mjs"
+    "verify:supabase-local": "node scripts/verify-supabase-local.mjs",
+    "verify:live": "node ../scripts/verify-live.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

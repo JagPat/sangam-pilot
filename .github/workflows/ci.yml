@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: sangam-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # The release gate (ADR-7): apply auth stub + roles + migrations, run the role-based SQL suites as
   # anon/authenticated/service_role against a real Postgres 16. Fails the build on any RLS/authorization
