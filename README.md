@@ -20,7 +20,7 @@ sangam/
     migrations/202607*_*.sql              # timestamped Supabase history
     tests/00..22_*.sql                    # role-based SQL suites (the release gate)
   app/                                    # Next.js 15 app (App Router)
-    app/login, app/auth/*                 # email magic-link / OTP sign-in
+    app/login, app/auth/*                 # scanner-safe email OTP sign-in
     app/schedule/*                        # personalized schedule + two-step RSVP
     app/invite/[token]/*                  # recipient-bound invite exchange (flag-gated OFF)
     lib/*                                 # supabase clients, auth, commands, data layer, types

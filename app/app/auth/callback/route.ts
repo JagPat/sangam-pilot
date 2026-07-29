@@ -7,8 +7,9 @@ import { getOrganizerNav } from '@/lib/data/nav';
 import { postAuthDestination } from '@/lib/auth/landing';
 import { getCreatorAccess } from '@/lib/data/creator-access';
 
-// Landing point for the magic-link / OTP email. Establishes the session cookies, then forwards to `next`.
-// Supports both the PKCE `code` flow (@supabase/ssr default) and the `token_hash`+`type` email template.
+// Compatibility landing point for older sign-in emails and explicit auth callbacks. Sangam's current
+// guest email is code-only so mail scanners cannot consume the token before the guest enters it.
+// Supports both the PKCE `code` flow (@supabase/ssr default) and token_hash+type callbacks.
 //
 // Redirects use RELATIVE Location headers on purpose. Behind a reverse proxy (Coolify/Traefik) a Route
 // Handler's `request.url` carries the INTERNAL host (e.g. localhost:3000), so an absolute redirect built

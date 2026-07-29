@@ -35,5 +35,12 @@ enable_signup = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
-# The app signs guests in with an email magic-link / OTP (app/app/login). Locally, emails land in Inbucket.
+# Keep local and hosted Auth aligned: Sangam deliberately uses a six-digit, code-only email. A template
+# containing ConfirmationURL can be consumed by email security scanners before the guest types the code.
+otp_length = 6
+otp_expiry = 3600
 # In cloud, configure a real SMTP sender in the dashboard for production volume.
+
+[auth.email.template.magic_link]
+subject = "Your Sangam sign-in code"
+content_path = "./supabase/templates/magic_link.html"
