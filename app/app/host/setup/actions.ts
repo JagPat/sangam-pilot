@@ -35,6 +35,7 @@ export async function createWedding(fd: FormData): Promise<void> {
   const start = s(fd, 'start');
   const end = s(fd, 'end');
   if (!title) fail('title');
+  if (start && end && end < start) fail('dates');
 
   let ok = true;
   try {

@@ -13,6 +13,7 @@ const TYPES = ['pithi', 'haldi', 'mehndi', 'sangeet', 'ceremony', 'reception', '
 const MESSAGES: Record<string, { kind: 'ok' | 'err'; text: string }> = {
   '1': { kind: 'ok', text: 'Saved.' },
   title: { kind: 'err', text: 'Please give the wedding a title.' },
+  dates: { kind: 'err', text: 'The end date cannot be before the start date.' },
   venue: { kind: 'err', text: 'A venue needs a name.' },
   event: { kind: 'err', text: 'An event needs a name and a date/time.' },
   save: { kind: 'err', text: "Couldn't save — please check the details and try again." },
@@ -146,7 +147,11 @@ function CreateWeddingForm({ heading, intro }: { heading: string; intro?: string
         <div className="sg-field"><label>Couple names</label><input className="sg-input" name="couple" placeholder="Aisha & Rohan" /></div>
         <div className="sg-field"><label>Default timezone</label><TzSelect name="tz" selected="Asia/Kolkata" /></div>
         <div className="sg-field"><label>Start date</label><input className="sg-input" type="date" name="start" /></div>
-        <div className="sg-field"><label>End date</label><input className="sg-input" type="date" name="end" /></div>
+        <div className="sg-field">
+          <label>End date</label>
+          <input className="sg-input" type="date" name="end" />
+          <span className="sg-muted" style={{ fontSize: 12 }}>End date cannot be before the start date.</span>
+        </div>
         <button type="submit" className="sg-btn sg-btn--primary">Create wedding</button>
       </form>
     </section>
