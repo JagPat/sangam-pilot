@@ -10,6 +10,8 @@ const password = `Gate-${crypto.randomUUID()}-aA1!`;
 const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 let authUserId;
 let approverAuthUserId;
+let intendedAuthUserId;
+let wrongContactAuthUserId;
 let weddingId;
 
 try {
@@ -92,15 +94,146 @@ try {
   const forbidden = await browser.schema('app').rpc('link_signed_in_account', { p_auth_user_id: authUserId });
   if (!forbidden.error) throw new Error('authenticated caller executed service-role-only linker');
 
+  // Recipient-bound invite exchange. The issuing owner, intended recipient, and wrong-contact recipient
+  // all use real GoTrue sessions. Raw links stay in this process only: never print or persist them.
+  const intendedEmail = `sangam-invite-${crypto.randomUUID()}@example.test`;
+  const intendedPassword = `Gate-${crypto.randomUUID()}-aA1!`;
+  const wrongContactEmail = `sangam-wrong-contact-${crypto.randomUUID()}@example.test`;
+  const wrongContactPassword = `Gate-${crypto.randomUUID()}-aA1!`;
+  const intendedCreated = await admin.auth.admin.createUser({
+    email: intendedEmail, password: intendedPassword, email_confirm: true,
+  });
+  if (intendedCreated.error || !intendedCreated.data.user) {
+    throw intendedCreated.error ?? new Error('intended invite auth user not created');
+  }
+  intendedAuthUserId = intendedCreated.data.user.id;
+  const wrongContactCreated = await admin.auth.admin.createUser({
+    email: wrongContactEmail, password: wrongContactPassword, email_confirm: true,
+  });
+  if (wrongContactCreated.error || !wrongContactCreated.data.user) {
+    throw wrongContactCreated.error ?? new Error('wrong-contact auth user not created');
+  }
+  wrongContactAuthUserId = wrongContactCreated.data.user.id;
+
+  const household = await admin.schema('app').from('household')
+    .insert({ wedding_id: weddingId, name: 'Invite gate household' }).select('id').single();
+  if (household.error || !household.data) throw household.error ?? new Error('invite gate household not created');
+  const guest = await admin.schema('app').from('guest').insert({
+    wedding_id: weddingId, household_id: household.data.id, full_name: 'Invite gate guest',
+  }).select('id').single();
+  if (guest.error || !guest.data) throw guest.error ?? new Error('invite gate guest not created');
+  const guestId = guest.data.id;
+  const contact = await admin.schema('app').from('household_contact').insert({
+    wedding_id: weddingId, household_id: household.data.id, guest_id: guestId,
+    channel: 'email', value: intendedEmail, is_shared: false,
+  });
+  if (contact.error) throw contact.error;
+
+  // The issuing RPC is called through the owner's real JWT. The returned raw token is intentionally
+  // retained only in this local variable, while the database stores its hash.
+  const issued = await browser.schema('app').rpc('issue_access_link', {
+    p_wedding: weddingId, p_guest: guestId, p_contact: intendedEmail, p_ttl: '30 days',
+  });
+  if (issued.error || !issued.data) throw issued.error ?? new Error('owner could not issue recipient-bound invite');
+  const rawInvite = issued.data;
+
+  // This mirrors the signed-out GET's service-side no-PII preview: it is non-consuming and returns only
+  // validity/wedding context, never a guest name. Calling it twice proves a scanner/prefetch cannot burn it.
+  const signedOutPreview = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
+  if (signedOutPreview.error || !Array.isArray(signedOutPreview.data) || !signedOutPreview.data[0]?.valid) {
+    throw signedOutPreview.error ?? new Error('signed-out invite preview was not valid');
+  }
+  if (Object.hasOwn(signedOutPreview.data[0], 'guest_name')) throw new Error('signed-out invite preview disclosed PII');
+  const signedOutPreviewRepeat = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
+  if (signedOutPreviewRepeat.error || !signedOutPreviewRepeat.data?.[0]?.valid) {
+    throw signedOutPreviewRepeat.error ?? new Error('signed-out invite preview consumed the link');
+  }
+
+  const intendedBrowser = createClient(url, anonKey, { auth: { persistSession: false } });
+  const intendedSignedIn = await intendedBrowser.auth.signInWithPassword({ email: intendedEmail, password: intendedPassword });
+  if (intendedSignedIn.error || !intendedSignedIn.data.session) {
+    throw intendedSignedIn.error ?? new Error('intended recipient real GoTrue session missing');
+  }
+  const intendedUser = await intendedBrowser.auth.getUser();
+  if (intendedUser.error || !intendedUser.data.user?.email_confirmed_at || intendedUser.data.user.email !== intendedEmail) {
+    throw intendedUser.error ?? new Error('intended recipient was not verified by GoTrue');
+  }
+  const intendedAccount = await admin.schema('app').from('account')
+    .insert({ auth_user_id: intendedAuthUserId, email: intendedEmail }).select('id').single();
+  if (intendedAccount.error || !intendedAccount.data) throw intendedAccount.error ?? new Error('intended account not created');
+
+  const wrongContactBrowser = createClient(url, anonKey, { auth: { persistSession: false } });
+  const wrongContactSignedIn = await wrongContactBrowser.auth.signInWithPassword({
+    email: wrongContactEmail, password: wrongContactPassword,
+  });
+  if (wrongContactSignedIn.error || !wrongContactSignedIn.data.session) {
+    throw wrongContactSignedIn.error ?? new Error('wrong-contact real GoTrue session missing');
+  }
+  const wrongContactUser = await wrongContactBrowser.auth.getUser();
+  if (wrongContactUser.error || !wrongContactUser.data.user?.email_confirmed_at || wrongContactUser.data.user.email !== wrongContactEmail) {
+    throw wrongContactUser.error ?? new Error('wrong-contact user was not verified by GoTrue');
+  }
+  const wrongContactAccount = await admin.schema('app').from('account')
+    .insert({ auth_user_id: wrongContactAuthUserId, email: wrongContactEmail }).select('id').single();
+  if (wrongContactAccount.error || !wrongContactAccount.data) {
+    throw wrongContactAccount.error ?? new Error('wrong-contact account not created');
+  }
+
+  const wrongPreview = await admin.schema('app').rpc('peek_invite_details', {
+    p_raw: rawInvite, p_verified_contact: wrongContactUser.data.user.email,
+  });
+  if (wrongPreview.error || !Array.isArray(wrongPreview.data) || wrongPreview.data[0]?.valid || wrongPreview.data[0]?.guest_name) {
+    throw wrongPreview.error ?? new Error('wrong-contact preview disclosed invitation details');
+  }
+  const wrongRedeem = await admin.schema('app').rpc('redeem_and_bind', {
+    p_raw: rawInvite, p_account: wrongContactAccount.data.id, p_verified_contact: wrongContactUser.data.user.email,
+  });
+  if (!wrongRedeem.error) throw new Error('wrong-contact recipient redeemed an invite');
+  const stillValid = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
+  if (stillValid.error || !stillValid.data?.[0]?.valid) {
+    throw stillValid.error ?? new Error('wrong-contact redemption consumed the invite');
+  }
+
+  const intendedRedeem = await admin.schema('app').rpc('redeem_and_bind', {
+    p_raw: rawInvite, p_account: intendedAccount.data.id, p_verified_contact: intendedUser.data.user.email,
+  });
+  if (intendedRedeem.error || !Array.isArray(intendedRedeem.data) || intendedRedeem.data[0]?.guest_id !== guestId) {
+    throw intendedRedeem.error ?? new Error('intended recipient could not redeem invite');
+  }
+  const replay = await admin.schema('app').rpc('redeem_and_bind', {
+    p_raw: rawInvite, p_account: wrongContactAccount.data.id, p_verified_contact: intendedUser.data.user.email,
+  });
+  if (!replay.error) throw new Error('used invite was redeemed by another account');
+  const consumed = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
+  if (consumed.error || consumed.data?.[0]?.valid) throw consumed.error ?? new Error('redeemed invite remained valid');
+
   console.log('SUPABASE REAL-AUTH GATE PASSED');
 } finally {
-  if (weddingId) await admin.schema('app').from('wedding').delete().eq('id', weddingId);
+  const cleanupFailures = [];
+  const clean = async (operation) => {
+    try {
+      const result = await operation();
+      if (result?.error) throw result.error;
+    } catch {
+      cleanupFailures.push(true);
+    }
+  };
+  if (weddingId) await clean(() => admin.schema('app').from('wedding').delete().eq('id', weddingId));
   if (authUserId) {
-    await admin.schema('app').from('account').delete().eq('auth_user_id', authUserId);
-    await admin.auth.admin.deleteUser(authUserId);
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', authUserId));
+    await clean(() => admin.auth.admin.deleteUser(authUserId));
   }
   if (approverAuthUserId) {
-    await admin.schema('app').from('account').delete().eq('auth_user_id', approverAuthUserId);
-    await admin.auth.admin.deleteUser(approverAuthUserId);
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', approverAuthUserId));
+    await clean(() => admin.auth.admin.deleteUser(approverAuthUserId));
   }
+  if (intendedAuthUserId) {
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', intendedAuthUserId));
+    await clean(() => admin.auth.admin.deleteUser(intendedAuthUserId));
+  }
+  if (wrongContactAuthUserId) {
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', wrongContactAuthUserId));
+    await clean(() => admin.auth.admin.deleteUser(wrongContactAuthUserId));
+  }
+  if (cleanupFailures.length) throw new Error('Supabase real-auth gate cleanup failed');
 }

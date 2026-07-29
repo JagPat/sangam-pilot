@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { postAuthDestination, safeInternalPath } from './landing';
+import { postAuthDestination, safeInternalPath, withSafeNext } from './landing';
 
 describe('safeInternalPath', () => {
-  it.each(['https://evil.example', '//evil.example', 'javascript:alert(1)', 'schedule'])(
+  it.each(['https://evil.example', '//evil.example', '/\\evil.example', 'javascript:alert(1)', 'schedule'])(
     'rejects %s',
     (value) => expect(safeInternalPath(value, '/schedule')).toBe('/schedule'),
   );
@@ -31,5 +31,22 @@ describe('postAuthDestination', () => {
 
   it('sends a provisioned wedding creator without an existing role to setup', () => {
     expect(postAuthDestination(null, [], true)).toBe('/host/setup');
+  });
+});
+
+describe('withSafeNext', () => {
+  it('keeps a valid invite destination across OTP state redirects', () => {
+    expect(withSafeNext('/login?sent=1&email=guest%40example.test', '/invite/invite-token')).toBe(
+      '/login?sent=1&email=guest%40example.test&next=%2Finvite%2Finvite-token',
+    );
+  });
+
+  it.each(['https://evil.example', '//evil.example', 'javascript:alert(1)'])(
+    'falls back to the schedule for unsafe destinations (%s)',
+    (next) => expect(withSafeNext('/login?error=send', next)).toBe('/login?error=send&next=%2Fschedule'),
+  );
+
+  it('does not add a destination when none was requested', () => {
+    expect(withSafeNext('/login?sent=1', null)).toBe('/login?sent=1');
   });
 });

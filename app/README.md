@@ -1,8 +1,7 @@
-# Sangam app (Slice-1 skeleton)
+# Sangam app (Slice-1)
 
-The **backend contract is the real deliverable**: the migrations, RLS, and the `propose/confirm` RSVP
-functions. This app package gives you the correct wiring around them; the UI is intentionally stubbed
-so Claude Code / Codex can build the Slice-1 screens against a solid foundation.
+Slice-1 schedule, RSVP, host management, and code-only OTP sign-in are implemented on top of the
+migrations, RLS, and `propose/confirm` RSVP contract.
 
 ## What's wired
 - `lib/supabase/clients.ts` — user-context client (RLS applies; anon key) + a narrow, server-only
@@ -19,7 +18,7 @@ so Claude Code / Codex can build the Slice-1 screens against a solid foundation.
   directly to their schedule or authorized organizer console; email verification is first-use/recovery,
   not an every-visit requirement. Auth cookies are persistent while Supabase controls session validity.
 
-## Invite exchange (wired — two-step, gated)
+## Invite exchange (implemented — two-step, production-gated)
 - `app/invite/[token]/page.tsx` (GET) validates the token **without consuming it** —
   prefetch/scanners/retries/shared devices can't silently burn a link. Unauthenticated visitors get a
   no-PII validity check (`peekInvite()`); the guest name (`peekInviteDetails()`) is shown only once
@@ -29,21 +28,19 @@ so Claude Code / Codex can build the Slice-1 screens against a solid foundation.
 - `app/invite/[token]/actions.ts` (POST server action, CSRF-protected by Next) reads the account from
   the verified session and calls `redeemInvite()` (the single redemption path), passing the verified
   contact — redemption is **recipient-bound**, so an arbitrary session + bearer token cannot redeem.
-- The whole route is dark until `INVITE_EXCHANGE_ENABLED=1` (kept off until session-mint is wired and
-  the DB is certified against Supabase-local).
+- The host issues a raw link once from the server after deriving the recipient email from the authorized
+  guest record; the database stores only hashes. The whole route stays dark in production until the
+  expanded real-GoTrue and browser acceptance journey has been certified.
 
-## Build next (Slice-1 UI — TODO)
-Suggested route stubs:
-- `app/schedule/page.tsx` → the guest's personalized itinerary (invited instances only), each in the
-  guest's local time + venue time; muhurat shown per `muhurat_kind`; ICS download (with a revision id).
-- `app/rsvp/[invitationGuestId]/page.tsx` → propose → **echo a confirmation** → confirm.
-- `app/now/page.tsx` → "Now/Next" using `app.effective_event_state`; "last updated" + stale banner.
-- `app/host/dashboard/page.tsx` → per-instance counts from `app.instance_rsvp_counts` /
-  `app.caterer_report` (owner only).
+## Release state
+
+- Sign-in is code-only and sessions persist until Supabase expires or revokes them.
+- Schedule and RSVP are implemented for Slice-1.
+- Recipient-bound invite exchange is implemented but disabled in production pending the real-auth/browser gate.
 
 ## Env
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` (client + server), `SUPABASE_SERVICE_ROLE_KEY` (server only),
-`INVITE_EXCHANGE_ENABLED` (set to `1` to turn on the invite route; off/unset keeps it 404).
+`INVITE_EXCHANGE_ENABLED` (keep `0` in production until the real-auth/browser gate is certified; off/unset keeps it 404).
 
 ## Guardrails
 - Never write `app.event_attendance` directly — go through the functions.

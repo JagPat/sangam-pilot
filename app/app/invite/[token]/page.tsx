@@ -51,7 +51,10 @@ export default async function InvitePage({
     return (
       <main style={wrap}>
         <h1>You&apos;re invited</h1>
-        <p>Please sign in to view your invitation and accept. (Sign-in is the remaining integration step.)</p>
+        <p>Please sign in to view your invitation and accept.</p>
+        <p>
+          <a href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>Sign in to continue</a>
+        </p>
       </main>
     );
   }

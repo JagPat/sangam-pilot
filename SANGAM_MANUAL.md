@@ -5,7 +5,8 @@
 - **Live app:** https://sangam.vitan.in
 - **Backend:** Supabase (Postgres + Auth + PostgREST + RLS), project `nlwuzfoumyypuxqcekcw`
 - **Source & deploy:** GitHub `JagPat/sangam-pilot` → Coolify auto-deploys `main`
-- **Status:** Slice-1 live and verified (see §8). Invite-by-link and WhatsApp flows are built but intentionally off.
+- **Release state:** Slice-1 schedule/RSVP and code-only OTP are implemented. Recipient-bound invite exchange is
+  implemented but intentionally disabled in production until the real-auth and browser acceptance gate is certified.
 
 ---
 
@@ -22,9 +23,8 @@ Everything a guest can see or do is scoped by the database itself, not just the 
 ### 2.1 Sign in
 1. Go to **https://sangam.vitan.in** and choose **Sign in** (or go straight to `/login`).
 2. Enter the email your wedding invitation was sent to.
-3. You get in one of two ways:
-   - **Sign-in code** — tap "Email me a sign-in code," then enter the newest six-digit code from the email. The code is valid for 60 minutes; wait for the resend countdown before requesting another.
-   - **Sign-in code** *(most reliable on phones)* — in the **"Already have a code from your email?"** box, type the code from the email and tap **"Sign in with code"** once.
+3. Tap **Email me a sign-in code**, then enter the newest six-digit code from the email. The code is valid for
+   60 minutes; wait for the resend countdown before requesting another.
 4. You land on **your schedule**.
 
 **Tips**
@@ -44,7 +44,8 @@ Each event is a card showing the event name and type (e.g. *Sangeet · sangeet*)
 Change your mind anytime (until the host's RSVP deadline) by choosing again and confirming. If two people answer for the same guest at once, the app asks you to review rather than silently overwriting.
 
 ### 2.4 Sign out
-Use the sign-out control (posts to `/auth/signout`) to clear your session. Sessions currently last about an hour; you may be asked to sign in again after that (this is being extended — see §10).
+Use the sign-out control (posts to `/auth/signout`) to clear your session. Sessions persist until Supabase expires
+or revokes them; returning guests with a valid session are not asked for another code.
 
 ---
 
@@ -194,11 +195,14 @@ Every table has Row-Level Security enabled and **denies by default** — a polic
 - **wedding_owner**: sees and manages the whole wedding; aggregate reports (headcounts, caterer report) are **owner-only** and return *empty* (never a partial total) to anyone else.
 - **service_role** (server only): the trusted path used by the invite-exchange and seeding; bypasses RLS. Never exposed to the browser.
 
-Recipient-bound **access links** (the invite-exchange flow) are hashed, single-use, and bound to the exact contact they were issued to — a forwarded link opened by a different account is rejected and never reveals the guest's name. This flow is built and now works on Supabase (fixed in migration 0008) but stays **off** (`INVITE_EXCHANGE_ENABLED=0`) until email OTP is proven end-to-end.
+Recipient-bound **access links** are hashed, single-use, and bound to the exact contact they were issued to — a
+forwarded link opened by a different account is rejected and never reveals the guest's name. Issuance derives the
+recipient contact from the authorized guest record. The flow is implemented but stays **off**
+(`INVITE_EXCHANGE_ENABLED=0`) in production until the expanded real-auth and browser acceptance gate is certified.
 
 ---
 
-## 8. What is verified working (certified state)
+## 8. Release-state verification
 
 Run on the live database and deployment on 2026-07-19:
 
@@ -213,14 +217,15 @@ Run on the live database and deployment on 2026-07-19:
 | Adversarial suite | **ALL PASSED** — cross-wedding isolation, aggregate-view scoping, direct-write denial, closed/expired/past-deadline rejection, derived authority, cross-actor-confirm rejection, single-pending-proposal, recipient-bound single-use access links |
 | Organizer management (2026-07-20) | Owner adds a guest + email and invites them at `/host/manage` (owner-session writes under RLS, not service role); the guest signs in and is **auto-linked by verified email**; a non-owner sees 0 rows and is denied writes — all verified live |
 | Wedding setup (2026-07-20) | Owner creates a wedding (and becomes its owner), adds venues, and adds/edits/cancels events at `/host/setup`; event times store the correct instant + UTC offset (IST +330, US-Eastern −240 verified); a non-owner is denied — all verified live |
+| Invite exchange | Implemented, including recipient-bound issuance and code-only OTP destination preservation; production flag remains `0` pending real-auth/browser certification |
 
 ---
 
 ## 9. Operations
 
 - **Deploy:** push to `main` → Coolify rebuilds and redeploys. Base directory `app/`, port 3000.
-- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0010_owner_setup_rpcs`.
-- **Release gate:** the SQL suites in `supabase/tests/` (run as `anon`/`authenticated`/`service_role`) are the certification; keep them green before real-guest rollout.
+- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0045_cost_control_privacy`.
+- **Release gate:** SQL suites `00`–`25` in `supabase/tests/` (run as `anon`/`authenticated`/`service_role`) plus the real-auth gate are the certification; keep them green before real-guest rollout.
 - **Env vars (server only):** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INVITE_EXCHANGE_ENABLED=0`. The service-role key must never be a `NEXT_PUBLIC_*` var.
 - **Rotate secrets** after go-live: Coolify root token, Supabase `service_role` key, DB password.
 
@@ -228,10 +233,8 @@ Run on the live database and deployment on 2026-07-19:
 
 ## 10. Known limitations & roadmap
 
-- **Session length** — currently ~1 hour; extend so guests aren't re-signing-in mid-event (Auth setting).
-- **Guest self-serve email code** — put the code into the outgoing sign-in email template so guests don't need a host to generate one; add a production SMTP sender. (Both are Supabase Auth settings.)
-- **Host/admin screens** — guests & invitations (§5.1) **and** the wedding shell — create-a-wedding, venues, and events (§5.2) — are now all in-app. The SQL template (§5) remains for bulk/one-shot loading.
-- **Invite-by-link exchange** — built and now Supabase-compatible, still gated off until email OTP is verified end-to-end.
+- **Production SMTP** — keep a production sender configured for code delivery.
+- **Invite-by-link exchange** — implemented but still gated off in production until real-auth and browser acceptance are certified.
 - **WhatsApp bot** — a fast-follow that calls the same `propose`/`confirm` functions.
 - **Deploy cleanup** — the `next start` vs `output: standalone` log warning is cosmetic; fold into a future push.
 

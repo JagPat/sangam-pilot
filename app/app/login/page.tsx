@@ -7,6 +7,7 @@ import { getOrganizerNav } from '@/lib/data/nav';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { getCreatorAccess } from '@/lib/data/creator-access';
 import { ResendCodeButton } from './ResendCodeButton';
+import { safeInternalPath } from '@/lib/auth/landing';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ export default async function LoginPage({
   }>;
 }) {
   const { sent, error, next, email, reason } = await searchParams;
-  const nextPath = next ?? '';
+  const nextPath = next ? safeInternalPath(next, '/schedule') : '';
 
   const user = await getVerifiedUser();
   let sections: { href: string }[] = [];
