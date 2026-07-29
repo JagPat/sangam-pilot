@@ -1,4 +1,4 @@
--- 22_legacy_finance_transition.sql — old finance is sealed; only non-private operational costs convert.
+-- 22_legacy_finance_transition.sql — old finance is sealed and every legacy mapping is quarantined.
 \set ON_ERROR_STOP on
 begin;
 
@@ -18,17 +18,15 @@ values('22000000-0000-0000-0000-000000000401','22000000-0000-0000-0000-000000000
 select app.convert_legacy_cost_control();
 
 do $$ begin
-  if not exists(select 1 from app.legacy_cost_control_conversion m join app.cost_item i on i.id=m.cost_item_id
-    join app.cost_estimate_version e on e.cost_item_id=i.id
-    where m.legacy_finance_cost_item_id='22000000-0000-0000-0000-000000000301'
-      and m.outcome='converted' and i.title='Official venue target' and e.origin='legacy_import' and e.state='submitted' and e.total=500000) then
-    raise exception 'FAIL(conversion): official operational target was not staged for approval';
+  if exists(select 1 from app.cost_item where wedding_id='22000000-0000-0000-0000-000000000101'
+    and title in ('Official venue target','Private contribution')) then
+    raise exception 'FAIL(privacy): legacy finance was copied into Cost Control';
   end if;
-  if exists(select 1 from app.cost_item where wedding_id='22000000-0000-0000-0000-000000000101' and title='Private contribution') then
-    raise exception 'FAIL(privacy): private contribution was copied into Cost Control';
-  end if;
-  if not exists(select 1 from app.legacy_cost_control_conversion where legacy_finance_cost_item_id='22000000-0000-0000-0000-000000000302' and outcome='excluded_private') then
-    raise exception 'FAIL(conversion): excluded private twin was not accounted for';
+  if (select count(*) from app.legacy_cost_control_conversion where legacy_finance_cost_item_id in (
+    '22000000-0000-0000-0000-000000000301',
+    '22000000-0000-0000-0000-000000000302'
+  ) and outcome='quarantined' and cost_item_id is null) <> 2 then
+    raise exception 'FAIL(quarantine): legacy sources were not both quarantined';
   end if;
 end $$;
 
@@ -41,6 +39,9 @@ do $$ begin
   exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
   begin perform app.manager_add_cost('22000000-0000-0000-0000-000000000101','Sneaky','misc',1,'INR',null,'planned',null,null);
     raise exception 'FAIL(seal): authenticated wrote retired finance';
+  exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+  begin perform app.convert_legacy_cost_control();
+    raise exception 'FAIL(seal): authenticated ran retired legacy conversion';
   exception when insufficient_privilege then null; when others then if sqlerrm like 'FAIL%' then raise; end if; end;
 end $$;
 reset role;
