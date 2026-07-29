@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { spawn } from 'node:child_process';
 
 const url = process.env.SUPABASE_URL || process.env.API_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY || process.env.ANON_KEY;
@@ -13,6 +15,56 @@ let approverAuthUserId;
 let intendedAuthUserId;
 let wrongContactAuthUserId;
 let weddingId;
+let appServer;
+
+async function sessionCookieHeader(session) {
+  let cookies = [];
+  const browser = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => [],
+      setAll: (nextCookies) => { cookies = nextCookies; },
+    },
+  });
+  const { error } = await browser.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  });
+  if (error || cookies.length === 0) throw error ?? new Error('real GoTrue session cookie was not created');
+  return cookies.map(({ name, value }) => `${name}=${encodeURIComponent(value)}`).join('; ');
+}
+
+async function startVerifierApp() {
+  const port = 34000 + Math.floor(Math.random() * 1000);
+  appServer = spawn('npm', ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', String(port)], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      INVITE_EXCHANGE_ENABLED: '1',
+      SANGAM_REAL_AUTH_TEST: '1',
+      NODE_ENV: 'development',
+    },
+    // Next dev normally logs every requested path, which would include the raw one-time token. The gate
+    // intentionally discards child output and reports only its own non-sensitive pass/fail messages.
+    stdio: 'ignore',
+  });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/api/health`);
+      if (response.ok) return baseUrl;
+    } catch {
+      // Server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error('local verifier app did not start');
+}
+
+async function stopVerifierApp() {
+  if (!appServer || appServer.exitCode !== null) return;
+  appServer.kill('SIGTERM');
+  await new Promise((resolve) => appServer.once('exit', resolve));
+}
 
 try {
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -129,24 +181,29 @@ try {
   });
   if (contact.error) throw contact.error;
 
-  // The issuing RPC is called through the owner's real JWT. The returned raw token is intentionally
-  // retained only in this local variable, while the database stores its hash.
-  const issued = await browser.schema('app').rpc('issue_access_link', {
-    p_wedding: weddingId, p_guest: guestId, p_contact: intendedEmail, p_ttl: '30 days',
+  // The issuing wrapper is called through the owner's real JWT. It reads the stored contact itself; the
+  // returned raw token is intentionally retained only in this local variable while the database stores hashes.
+  const issued = await browser.schema('app').rpc('issue_guest_access_link', {
+    p_wedding: weddingId, p_guest: guestId, p_ttl: '30 days',
   });
   if (issued.error || !issued.data) throw issued.error ?? new Error('owner could not issue recipient-bound invite');
   const rawInvite = issued.data;
+  const verifierBaseUrl = await startVerifierApp();
+  const inviteUrl = `${verifierBaseUrl}/invite/${encodeURIComponent(rawInvite)}`;
+  const redeemUrl = `${verifierBaseUrl}/api/test/invite-redeem/${encodeURIComponent(rawInvite)}`;
 
-  // This mirrors the signed-out GET's service-side no-PII preview: it is non-consuming and returns only
-  // validity/wedding context, never a guest name. Calling it twice proves a scanner/prefetch cannot burn it.
-  const signedOutPreview = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
-  if (signedOutPreview.error || !Array.isArray(signedOutPreview.data) || !signedOutPreview.data[0]?.valid) {
-    throw signedOutPreview.error ?? new Error('signed-out invite preview was not valid');
+  // Exercise the actual GET page without cookies. It must be valid/no-PII and remain valid after a repeat.
+  const signedOutPreview = await fetch(inviteUrl, { redirect: 'manual' });
+  const signedOutHtml = await signedOutPreview.text();
+  if (!signedOutPreview.ok || !signedOutHtml.includes('Sign in to continue')) {
+    throw new Error('signed-out invite page did not show its non-consuming sign-in CTA');
   }
-  if (Object.hasOwn(signedOutPreview.data[0], 'guest_name')) throw new Error('signed-out invite preview disclosed PII');
-  const signedOutPreviewRepeat = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
-  if (signedOutPreviewRepeat.error || !signedOutPreviewRepeat.data?.[0]?.valid) {
-    throw signedOutPreviewRepeat.error ?? new Error('signed-out invite preview consumed the link');
+  if (signedOutHtml.includes('Invite gate guest') || signedOutHtml.includes(intendedEmail)) {
+    throw new Error('signed-out invite page disclosed PII');
+  }
+  const signedOutPreviewRepeat = await fetch(inviteUrl, { redirect: 'manual' });
+  if (!signedOutPreviewRepeat.ok || !(await signedOutPreviewRepeat.text()).includes('Sign in to continue')) {
+    throw new Error('signed-out invite page consumed the link');
   }
 
   const intendedBrowser = createClient(url, anonKey, { auth: { persistSession: false } });
@@ -158,9 +215,7 @@ try {
   if (intendedUser.error || !intendedUser.data.user?.email_confirmed_at || intendedUser.data.user.email !== intendedEmail) {
     throw intendedUser.error ?? new Error('intended recipient was not verified by GoTrue');
   }
-  const intendedAccount = await admin.schema('app').from('account')
-    .insert({ auth_user_id: intendedAuthUserId, email: intendedEmail }).select('id').single();
-  if (intendedAccount.error || !intendedAccount.data) throw intendedAccount.error ?? new Error('intended account not created');
+  const intendedCookie = await sessionCookieHeader(intendedSignedIn.data.session);
 
   const wrongContactBrowser = createClient(url, anonKey, { auth: { persistSession: false } });
   const wrongContactSignedIn = await wrongContactBrowser.auth.signInWithPassword({
@@ -173,42 +228,35 @@ try {
   if (wrongContactUser.error || !wrongContactUser.data.user?.email_confirmed_at || wrongContactUser.data.user.email !== wrongContactEmail) {
     throw wrongContactUser.error ?? new Error('wrong-contact user was not verified by GoTrue');
   }
-  const wrongContactAccount = await admin.schema('app').from('account')
-    .insert({ auth_user_id: wrongContactAuthUserId, email: wrongContactEmail }).select('id').single();
-  if (wrongContactAccount.error || !wrongContactAccount.data) {
-    throw wrongContactAccount.error ?? new Error('wrong-contact account not created');
+  const wrongContactCookie = await sessionCookieHeader(wrongContactSignedIn.data.session);
+  const wrongPreview = await fetch(inviteUrl, { headers: { cookie: wrongContactCookie }, redirect: 'manual' });
+  const wrongPreviewHtml = await wrongPreview.text();
+  if (!wrongPreview.ok || !wrongPreviewHtml.includes('different contact') || wrongPreviewHtml.includes('Invite gate guest')) {
+    throw new Error('wrong-contact invite page disclosed invitation details');
+  }
+  const wrongRedeem = await fetch(redeemUrl, { method: 'POST', headers: { cookie: wrongContactCookie } });
+  if (wrongRedeem.status !== 403) throw new Error('wrong-contact recipient redeemed an invite');
+  const stillValid = await fetch(inviteUrl, { redirect: 'manual' });
+  if (!stillValid.ok || !(await stillValid.text()).includes('Sign in to continue')) {
+    throw new Error('wrong-contact redemption consumed the invite');
   }
 
-  const wrongPreview = await admin.schema('app').rpc('peek_invite_details', {
-    p_raw: rawInvite, p_verified_contact: wrongContactUser.data.user.email,
-  });
-  if (wrongPreview.error || !Array.isArray(wrongPreview.data) || wrongPreview.data[0]?.valid || wrongPreview.data[0]?.guest_name) {
-    throw wrongPreview.error ?? new Error('wrong-contact preview disclosed invitation details');
+  const intendedRedeem = await fetch(redeemUrl, { method: 'POST', headers: { cookie: intendedCookie } });
+  if (!intendedRedeem.ok || !(await intendedRedeem.json()).ok) throw new Error('intended recipient could not redeem invite');
+  const boundGuest = await admin.schema('app').from('guest').select('self_account_id').eq('id', guestId).single();
+  if (boundGuest.error || !boundGuest.data?.self_account_id) {
+    throw boundGuest.error ?? new Error('intended recipient was not bound by the production redemption path');
   }
-  const wrongRedeem = await admin.schema('app').rpc('redeem_and_bind', {
-    p_raw: rawInvite, p_account: wrongContactAccount.data.id, p_verified_contact: wrongContactUser.data.user.email,
-  });
-  if (!wrongRedeem.error) throw new Error('wrong-contact recipient redeemed an invite');
-  const stillValid = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
-  if (stillValid.error || !stillValid.data?.[0]?.valid) {
-    throw stillValid.error ?? new Error('wrong-contact redemption consumed the invite');
+  const replay = await fetch(redeemUrl, { method: 'POST', headers: { cookie: wrongContactCookie } });
+  if (replay.status !== 403) throw new Error('used invite was redeemed by another account');
+  const consumed = await fetch(inviteUrl, { redirect: 'manual' });
+  if (!consumed.ok || !(await consumed.text()).includes('invalid or has already been used')) {
+    throw new Error('redeemed invite remained valid');
   }
-
-  const intendedRedeem = await admin.schema('app').rpc('redeem_and_bind', {
-    p_raw: rawInvite, p_account: intendedAccount.data.id, p_verified_contact: intendedUser.data.user.email,
-  });
-  if (intendedRedeem.error || !Array.isArray(intendedRedeem.data) || intendedRedeem.data[0]?.guest_id !== guestId) {
-    throw intendedRedeem.error ?? new Error('intended recipient could not redeem invite');
-  }
-  const replay = await admin.schema('app').rpc('redeem_and_bind', {
-    p_raw: rawInvite, p_account: wrongContactAccount.data.id, p_verified_contact: intendedUser.data.user.email,
-  });
-  if (!replay.error) throw new Error('used invite was redeemed by another account');
-  const consumed = await admin.schema('app').rpc('peek_access_link', { p_raw: rawInvite });
-  if (consumed.error || consumed.data?.[0]?.valid) throw consumed.error ?? new Error('redeemed invite remained valid');
 
   console.log('SUPABASE REAL-AUTH GATE PASSED');
 } finally {
+  await stopVerifierApp();
   const cleanupFailures = [];
   const clean = async (operation) => {
     try {

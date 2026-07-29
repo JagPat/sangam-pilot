@@ -224,8 +224,8 @@ Run on the live database and deployment on 2026-07-19:
 ## 9. Operations
 
 - **Deploy:** push to `main` → Coolify rebuilds and redeploys. Base directory `app/`, port 3000.
-- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0045_cost_control_privacy`.
-- **Release gate:** SQL suites `00`–`25` in `supabase/tests/` (run as `anon`/`authenticated`/`service_role`) plus the real-auth gate are the certification; keep them green before real-guest rollout.
+- **Schema changes:** add a new numbered file in `supabase/migrations/` (never edit an applied one). Latest applied is `0046_invite_issuance`.
+- **Release gate:** SQL suites `00`–`26` in `supabase/tests/` (run as `anon`/`authenticated`/`service_role`) plus the real-auth gate are the certification; keep them green before real-guest rollout.
 - **Env vars (server only):** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `INVITE_EXCHANGE_ENABLED=0`. The service-role key must never be a `NEXT_PUBLIC_*` var.
 - **Rotate secrets** after go-live: Coolify root token, Supabase `service_role` key, DB password.
 

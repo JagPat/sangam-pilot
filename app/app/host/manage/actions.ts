@@ -27,8 +27,8 @@ function fail(code: string): never {
 export type IssueAccessLinkState = { url: string | null; error: string | null };
 
 // A raw link exists only in this server-action response, which is delivered to the issuing operator's
-// form state. The browser supplies only row identifiers; the session-bound database read obtains the
-// intended contact and the recipient-bound RPC re-authorizes owner access before storing hashes only.
+// form state. The browser supplies only row identifiers; the authenticated database wrapper locks the guest,
+// derives the intended contact atomically, and stores hashes only.
 export async function issueGuestAccessLink(
   _previous: IssueAccessLinkState,
   fd: FormData,
@@ -46,31 +46,9 @@ export async function issueGuestAccessLink(
     const { data: auth, error: authError } = await client.auth.getUser();
     if (authError || !auth.user) return { url: null, error: 'Please sign in again before issuing a link.' };
 
-    const app = client.schema('app');
-    const { data: guest, error: guestError } = await app
-      .from('guest')
-      .select('id')
-      .eq('wedding_id', weddingId)
-      .eq('id', guestId)
-      .maybeSingle();
-    if (guestError || !guest) return { url: null, error: 'That guest is no longer available to issue.' };
-
-    const { data: contact, error: contactError } = await app
-      .from('household_contact')
-      .select('value')
-      .eq('wedding_id', weddingId)
-      .eq('guest_id', guestId)
-      .eq('channel', 'email')
-      .limit(1)
-      .maybeSingle();
-    if (contactError || !contact?.value) {
-      return { url: null, error: 'Add this guest’s sign-in email before issuing a link.' };
-    }
-
-    const { data: rawToken, error } = await app.rpc('issue_access_link', {
+    const { data: rawToken, error } = await client.schema('app').rpc('issue_guest_access_link', {
       p_wedding: weddingId,
       p_guest: guestId,
-      p_contact: contact.value,
       p_ttl: '30 days',
     });
     if (error || !rawToken) return { url: null, error: 'Could not issue that link. Please try again.' };

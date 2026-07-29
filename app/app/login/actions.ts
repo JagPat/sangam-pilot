@@ -49,7 +49,7 @@ export async function verifyCode(formData: FormData): Promise<void> {
   const verifiedUser = data.user;
   if (!verifiedUser) return backToCode();
   const linkResult = await linkSignedInAccount(verifiedUser.id);
-  if (!linkResult.ok) redirect('/access?reason=account_link_failed');
+  if (!linkResult.ok) redirect(withSafeNext('/access?reason=account_link_failed', safeNext));
 
   const appDb = supabase as unknown as AppSupabaseClient;
   const [nav, creator] = await Promise.all([getOrganizerNav(appDb), getCreatorAccess(appDb)]);

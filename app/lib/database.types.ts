@@ -175,6 +175,10 @@ export type Database = {
         Args: { p_wedding: string; p_guest: string; p_contact: string; p_ttl?: string };
         Returns: string;
       };
+      issue_guest_access_link: {
+        Args: { p_wedding: string; p_guest: string; p_ttl?: string };
+        Returns: string;
+      };
       // The signed-in account's app.account id (from auth.uid()); null if no verified session.
       current_account_id: {
         Args: Record<string, never>;

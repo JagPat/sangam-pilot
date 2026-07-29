@@ -18,7 +18,7 @@ sangam/
   supabase/
     config.toml                           # exposes the `app` schema to PostgREST; local auth config
     migrations/202607*_*.sql              # timestamped Supabase history
-    tests/00..25_*.sql                    # role-based SQL suites (the release gate)
+    tests/00..26_*.sql                    # role-based SQL suites (the release gate)
   app/                                    # Next.js 15 app (App Router)
     app/login, app/auth/*                 # scanner-safe email OTP sign-in
     app/schedule/*                        # personalized schedule + two-step RSVP
