@@ -109,6 +109,10 @@ do $$ begin
     and privilege_type in('INSERT','UPDATE','DELETE')) then
     raise exception 'FAIL(grants): official-cost tables expose direct DML';
   end if;
+  if not exists(select 1 from pg_indexes where schemaname='app' and tablename='cost_commitment'
+    and indexname='cost_commitment_one_approved') then
+    raise exception 'FAIL(concurrency): approved commitments lack a database uniqueness guard';
+  end if;
 end $$;
 
 select 'ALL OFFICIAL COST RECORD TESTS PASSED' as result;
