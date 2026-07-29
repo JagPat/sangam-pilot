@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { spawn } from 'node:child_process';
 
 const url = process.env.SUPABASE_URL || process.env.API_URL;
 const anonKey = process.env.SUPABASE_ANON_KEY || process.env.ANON_KEY;
@@ -10,7 +12,65 @@ const password = `Gate-${crypto.randomUUID()}-aA1!`;
 const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 let authUserId;
 let approverAuthUserId;
+let intendedAuthUserId;
+let wrongContactAuthUserId;
 let weddingId;
+let appServer;
+
+async function sessionCookieHeader(session) {
+  let cookies = [];
+  const browser = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => [],
+      setAll: (nextCookies) => { cookies = nextCookies; },
+    },
+  });
+  const { error } = await browser.auth.setSession({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+  });
+  if (error || cookies.length === 0) throw error ?? new Error('real GoTrue session cookie was not created');
+  return cookies.map(({ name, value }) => `${name}=${encodeURIComponent(value)}`).join('; ');
+}
+
+async function startVerifierApp() {
+  const port = 34000 + Math.floor(Math.random() * 1000);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  appServer = spawn('npm', ['run', 'dev', '--', '--hostname', '127.0.0.1', '--port', String(port)], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      // `supabase status -o env` exposes API_URL/ANON_KEY/SERVICE_ROLE_KEY. The application itself
+      // deliberately uses the production variable names, so normalize them for the spawned Next server.
+      SUPABASE_URL: url,
+      SUPABASE_ANON_KEY: anonKey,
+      SUPABASE_SERVICE_ROLE_KEY: serviceKey,
+      PUBLIC_SITE_URL: baseUrl,
+      INVITE_EXCHANGE_ENABLED: '1',
+      SANGAM_REAL_AUTH_TEST: '1',
+      NODE_ENV: 'development',
+    },
+    // Next dev normally logs every requested path, which would include the raw one-time token. The gate
+    // intentionally discards child output and reports only its own non-sensitive pass/fail messages.
+    stdio: 'ignore',
+  });
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/api/health`);
+      if (response.ok) return baseUrl;
+    } catch {
+      // Server is still starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error('local verifier app did not start');
+}
+
+async function stopVerifierApp() {
+  if (!appServer || appServer.exitCode !== null) return;
+  appServer.kill('SIGTERM');
+  await new Promise((resolve) => appServer.once('exit', resolve));
+}
 
 try {
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
@@ -92,15 +152,171 @@ try {
   const forbidden = await browser.schema('app').rpc('link_signed_in_account', { p_auth_user_id: authUserId });
   if (!forbidden.error) throw new Error('authenticated caller executed service-role-only linker');
 
+  // Recipient-bound invite exchange. The issuing owner, intended recipient, and wrong-contact recipient
+  // all use real GoTrue sessions. Raw links stay in this process only: never print or persist them.
+  const intendedEmail = `sangam-invite-${crypto.randomUUID()}@example.test`;
+  const intendedPassword = `Gate-${crypto.randomUUID()}-aA1!`;
+  const wrongContactEmail = `sangam-wrong-contact-${crypto.randomUUID()}@example.test`;
+  const wrongContactPassword = `Gate-${crypto.randomUUID()}-aA1!`;
+  const intendedCreated = await admin.auth.admin.createUser({
+    email: intendedEmail, password: intendedPassword, email_confirm: true,
+  });
+  if (intendedCreated.error || !intendedCreated.data.user) {
+    throw intendedCreated.error ?? new Error('intended invite auth user not created');
+  }
+  intendedAuthUserId = intendedCreated.data.user.id;
+  const wrongContactCreated = await admin.auth.admin.createUser({
+    email: wrongContactEmail, password: wrongContactPassword, email_confirm: true,
+  });
+  if (wrongContactCreated.error || !wrongContactCreated.data.user) {
+    throw wrongContactCreated.error ?? new Error('wrong-contact auth user not created');
+  }
+  wrongContactAuthUserId = wrongContactCreated.data.user.id;
+
+  const household = await admin.schema('app').from('household')
+    .insert({ wedding_id: weddingId, name: 'Invite gate household' }).select('id').single();
+  if (household.error || !household.data) throw household.error ?? new Error('invite gate household not created');
+  const guest = await admin.schema('app').from('guest').insert({
+    wedding_id: weddingId, household_id: household.data.id, full_name: 'Invite gate guest',
+  }).select('id').single();
+  if (guest.error || !guest.data) throw guest.error ?? new Error('invite gate guest not created');
+  const guestId = guest.data.id;
+  const contact = await admin.schema('app').from('household_contact').insert({
+    wedding_id: weddingId, household_id: household.data.id, guest_id: guestId,
+    channel: 'email', value: intendedEmail, is_shared: false,
+  });
+  if (contact.error) throw contact.error;
+
+  // Exercise the same verified-session -> server-only service command used by the host action. The local
+  // route is available only in the isolated development verifier process; raw output remains in memory.
+  const verifierBaseUrl = await startVerifierApp();
+  const ownerCookie = await sessionCookieHeader(signedIn.data.session);
+  const issued = await fetch(`${verifierBaseUrl}/api/test/invite-issue`, {
+    method: 'POST',
+    headers: { cookie: ownerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ weddingId, guestId }),
+  });
+  const issuedBody = await issued.json();
+  if (!issued.ok || !issuedBody.ok || !issuedBody.token) {
+    throw new Error('owner could not issue recipient-bound invite through the production command path');
+  }
+  const rawInvite = issuedBody.token;
+  const inviteUrl = `${verifierBaseUrl}/invite/${encodeURIComponent(rawInvite)}`;
+  const redeemUrl = `${verifierBaseUrl}/api/test/invite-redeem/${encodeURIComponent(rawInvite)}`;
+
+  // Exercise the actual GET page without cookies. It must be valid/no-PII and remain valid after a repeat.
+  const signedOutPreview = await fetch(inviteUrl, { redirect: 'manual' });
+  const signedOutHtml = await signedOutPreview.text();
+  if (!signedOutPreview.ok || !signedOutHtml.includes('Sign in to continue')) {
+    throw new Error('signed-out invite page did not show its non-consuming sign-in CTA');
+  }
+  if (signedOutHtml.includes('Invite gate guest') || signedOutHtml.includes(intendedEmail)) {
+    throw new Error('signed-out invite page disclosed PII');
+  }
+  const signedOutPreviewRepeat = await fetch(inviteUrl, { redirect: 'manual' });
+  if (!signedOutPreviewRepeat.ok || !(await signedOutPreviewRepeat.text()).includes('Sign in to continue')) {
+    throw new Error('signed-out invite page consumed the link');
+  }
+
+  const intendedBrowser = createClient(url, anonKey, { auth: { persistSession: false } });
+  const intendedSignedIn = await intendedBrowser.auth.signInWithPassword({ email: intendedEmail, password: intendedPassword });
+  if (intendedSignedIn.error || !intendedSignedIn.data.session) {
+    throw intendedSignedIn.error ?? new Error('intended recipient real GoTrue session missing');
+  }
+  const intendedUser = await intendedBrowser.auth.getUser();
+  if (intendedUser.error || !intendedUser.data.user?.email_confirmed_at || intendedUser.data.user.email !== intendedEmail) {
+    throw intendedUser.error ?? new Error('intended recipient was not verified by GoTrue');
+  }
+  const intendedCookie = await sessionCookieHeader(intendedSignedIn.data.session);
+
+  const wrongContactBrowser = createClient(url, anonKey, { auth: { persistSession: false } });
+  const wrongContactSignedIn = await wrongContactBrowser.auth.signInWithPassword({
+    email: wrongContactEmail, password: wrongContactPassword,
+  });
+  if (wrongContactSignedIn.error || !wrongContactSignedIn.data.session) {
+    throw wrongContactSignedIn.error ?? new Error('wrong-contact real GoTrue session missing');
+  }
+  const wrongContactUser = await wrongContactBrowser.auth.getUser();
+  if (wrongContactUser.error || !wrongContactUser.data.user?.email_confirmed_at || wrongContactUser.data.user.email !== wrongContactEmail) {
+    throw wrongContactUser.error ?? new Error('wrong-contact user was not verified by GoTrue');
+  }
+  const wrongContactCookie = await sessionCookieHeader(wrongContactSignedIn.data.session);
+  const wrongPreview = await fetch(inviteUrl, { headers: { cookie: wrongContactCookie }, redirect: 'manual' });
+  const wrongPreviewHtml = await wrongPreview.text();
+  if (!wrongPreview.ok || !wrongPreviewHtml.includes('different contact') || wrongPreviewHtml.includes('Invite gate guest')) {
+    throw new Error('wrong-contact invite page disclosed invitation details');
+  }
+  const wrongRedeem = await fetch(redeemUrl, { method: 'POST', headers: { cookie: wrongContactCookie } });
+  if (wrongRedeem.status !== 403) throw new Error('wrong-contact recipient redeemed an invite');
+  const stillValid = await fetch(inviteUrl, { redirect: 'manual' });
+  if (!stillValid.ok || !(await stillValid.text()).includes('Sign in to continue')) {
+    throw new Error('wrong-contact redemption consumed the invite');
+  }
+
+  const intendedRedeem = await fetch(redeemUrl, { method: 'POST', headers: { cookie: intendedCookie } });
+  if (!intendedRedeem.ok || !(await intendedRedeem.json()).ok) throw new Error('intended recipient could not redeem invite');
+  const boundGuest = await admin.schema('app').from('guest').select('self_account_id').eq('id', guestId).single();
+  if (boundGuest.error || !boundGuest.data?.self_account_id) {
+    throw boundGuest.error ?? new Error('intended recipient was not bound by the production redemption path');
+  }
+  const intendedReplay = await fetch(redeemUrl, { method: 'POST', headers: { cookie: intendedCookie } });
+  if (!intendedReplay.ok || !(await intendedReplay.json()).ok) {
+    throw new Error('intended recipient replay was not idempotent');
+  }
+
+  // The real wrong-contact session above is denied before the database reaches the used-link branch.
+  // Reuse that session's linked account with the intended contact to make the cross-account replay
+  // assertion reason-specific: the RPC must now reject it because another account already used the link.
+  const wrongAccount = await admin
+    .schema('app')
+    .from('account')
+    .select('id')
+    .eq('auth_user_id', wrongContactAuthUserId)
+    .single();
+  if (wrongAccount.error || !wrongAccount.data) {
+    throw wrongAccount.error ?? new Error('wrong-contact session was not linked to an app account');
+  }
+  const crossAccountReplay = await admin.schema('app').rpc('redeem_and_bind', {
+    p_raw: rawInvite,
+    p_account: wrongAccount.data.id,
+    p_verified_contact: intendedEmail,
+  });
+  if (!crossAccountReplay.error || !/link already used/i.test(crossAccountReplay.error.message ?? '')) {
+    throw new Error('used invite did not reject a different account specifically');
+  }
+  const consumed = await fetch(inviteUrl, { redirect: 'manual' });
+  if (!consumed.ok || !(await consumed.text()).includes('invalid or has already been used')) {
+    throw new Error('redeemed invite remained valid');
+  }
+
   console.log('SUPABASE REAL-AUTH GATE PASSED');
 } finally {
-  if (weddingId) await admin.schema('app').from('wedding').delete().eq('id', weddingId);
+  await stopVerifierApp();
+  const cleanupFailures = [];
+  const clean = async (operation) => {
+    try {
+      const result = await operation();
+      if (result?.error) throw result.error;
+    } catch {
+      cleanupFailures.push(true);
+    }
+  };
+  if (weddingId) await clean(() => admin.schema('app').from('wedding').delete().eq('id', weddingId));
   if (authUserId) {
-    await admin.schema('app').from('account').delete().eq('auth_user_id', authUserId);
-    await admin.auth.admin.deleteUser(authUserId);
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', authUserId));
+    await clean(() => admin.auth.admin.deleteUser(authUserId));
   }
   if (approverAuthUserId) {
-    await admin.schema('app').from('account').delete().eq('auth_user_id', approverAuthUserId);
-    await admin.auth.admin.deleteUser(approverAuthUserId);
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', approverAuthUserId));
+    await clean(() => admin.auth.admin.deleteUser(approverAuthUserId));
   }
+  if (intendedAuthUserId) {
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', intendedAuthUserId));
+    await clean(() => admin.auth.admin.deleteUser(intendedAuthUserId));
+  }
+  if (wrongContactAuthUserId) {
+    await clean(() => admin.schema('app').from('account').delete().eq('auth_user_id', wrongContactAuthUserId));
+    await clean(() => admin.auth.admin.deleteUser(wrongContactAuthUserId));
+  }
+  if (cleanupFailures.length) throw new Error('Supabase real-auth gate cleanup failed');
 }

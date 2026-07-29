@@ -6,8 +6,8 @@ release gate (`.github/workflows/ci.yml`) — the SQL suites as `anon`/`authenti
 real Postgres 16 — before anything ships.
 
 Decisions locked in `docs/adr/0001-slice1-locked-decisions.md` apply throughout — notably:
-`INVITE_EXCHANGE_ENABLED` stays `0` until confirmed-email invite exchange is verified end-to-end and the
-`supabase-real-auth` CI job is green.
+`INVITE_EXCHANGE_ENABLED` stays `0` until the recipient-bound exchange passes the expanded real-GoTrue and
+browser acceptance journey in the hosted environment.
 
 ---
 
@@ -107,7 +107,7 @@ DATABASE_URL="postgres://postgres:...@host:5432/postgres" bash scripts/run-sql-s
 - [ ] Automated browser-restart certification passes without printing secrets:
       `E2E_BASE_URL=https://sangam.yourdomain.com npm run verify:session` with `SUPABASE_URL` and
       `SUPABASE_SERVICE_ROLE_KEY` supplied from the operator environment.
-- [ ] `INVITE_EXCHANGE_ENABLED=0` (the `/invite/[token]` route stays 404 until OTP is proven).
+- [ ] `INVITE_EXCHANGE_ENABLED=0` (the `/invite/[token]` route stays 404 until the expanded invite gate is certified).
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` is set only on the server (never a `NEXT_PUBLIC_*` var, never in the
       browser).
 
@@ -141,6 +141,7 @@ supabase status -o env > /tmp/supabase.env
 set -a; source /tmp/supabase.env; set +a
 (cd app && npm run verify:supabase-local)
 ```
-This is separate from the psql suites: it creates a disposable confirmed Auth user, signs in through
-GoTrue, calls PostgREST under a real authenticated JWT, verifies anon denial and service-only RPC denial,
-then deletes the disposable data.
+This is separate from the psql suites: it creates disposable confirmed Auth users, signs in through real
+GoTrue, verifies the recipient-bound invite journey (signed-out no-PII preview, wrong-contact denial,
+intended redemption, and replay denial), then cleans every disposable row in `finally`. Keep the production
+flag at `0` until this and the hosted browser acceptance journey pass.

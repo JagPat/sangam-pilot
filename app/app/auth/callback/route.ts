@@ -4,7 +4,7 @@ import { serverClientRW } from '@/lib/supabase/serverClient';
 import type { AppSupabaseClient } from '@/lib/supabase/clients';
 import { linkSignedInAccount } from '@/lib/auth/link';
 import { getOrganizerNav } from '@/lib/data/nav';
-import { postAuthDestination } from '@/lib/auth/landing';
+import { postAuthDestination, withSafeNext } from '@/lib/auth/landing';
 import { getCreatorAccess } from '@/lib/data/creator-access';
 
 // Compatibility landing point for older sign-in emails and explicit auth callbacks. Sangam's current
@@ -30,18 +30,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) return redirectTo('/login?error=callback');
+    if (error) return redirectTo(withSafeNext('/login?error=callback', nextParam));
   } else if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
-    if (error) return redirectTo('/login?error=callback');
+    if (error) return redirectTo(withSafeNext('/login?error=callback', nextParam));
   } else {
-    return redirectTo('/login?error=callback');
+    return redirectTo(withSafeNext('/login?error=callback', nextParam));
   }
 
   const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return redirectTo('/login?error=callback');
+  if (!userData.user) return redirectTo(withSafeNext('/login?error=callback', nextParam));
   const linkResult = await linkSignedInAccount(userData.user.id);
-  if (!linkResult.ok) return redirectTo('/access?reason=account_link_failed');
+  if (!linkResult.ok) return redirectTo(withSafeNext('/access?reason=account_link_failed', nextParam));
 
   // Default landing: a wedding owner (event manager) is usually also a guest, so without an explicit
   // destination send them to the organizer console rather than their own guest schedule. Best-effort —

@@ -5,8 +5,8 @@ Two local gates are verified: the **database** (local Postgres with Supabase rol
 CI has a separate `supabase-real-auth` job that starts the genuine Supabase stack and obtains a GoTrue
 session before exercising PostgREST as anon/authenticated/service-role. This machine has no Docker binary,
 so that distinct gate must be green in GitHub before enabling invite exchange.
-The linked production project runs Postgres 17; its migration history is aligned byte-for-byte by
-timestamp through `20260726032455_0024_review_hardening.sql`.
+The linked production project runs Postgres 17. This branch contains 47 timestamped migrations through
+`20260729113000_0047_server_invite_issuance.sql`; production alignment must be re-certified before rollout.
 
 ## Session reliability
 
@@ -21,8 +21,9 @@ timestamp through `20260726032455_0024_review_hardening.sql`.
   CI: <https://github.com/JagPat/sangam-pilot/actions/runs/30187842113>. Cleanup verified zero disposable
   Auth users and zero disposable `app.account` rows.
 
-## Database — all 16 suites pass (real signal)
-All **30 timestamped migrations** apply cleanly through `0030_wedding_creation_gate`.
+## Database — 27 suites (`00`–`26`)
+All **47 timestamped migrations** through `0047_server_invite_issuance` and all 27 SQL suites are the current
+release gate. On 2026-07-29 they passed from scratch against an isolated local PostgreSQL database.
 - **01_constraints** — muhurat CHECK, invitation↔instance match, no double-invite, derived attendance,
   cross-wedding isolation.
 - **02_rsvp_flow** — propose→confirm, derived counts, optimistic concurrency; both provenance dimensions
@@ -70,6 +71,10 @@ All **30 timestamped migrations** apply cleanly through `0030_wedding_creation_g
   different contact" notice on mismatch, and `actions.ts` redemption fails closed.
 - Two-step exchange unchanged: non-consuming GET + CSRF-protected POST server action; the token is the
   sole wedding/guest authority; the whole route is gated by `INVITE_EXCHANGE_ENABLED`.
+- Host issuance is service-only and accepts no browser-supplied actor, contact, or lifetime. Trusted server
+  code maps the `auth.getUser()` identity to an account; PostgreSQL rechecks active `wedding_owner` membership,
+  locks and requires exactly one guest-specific unshared email, and fixes expiry at 30 days. The absolute URL
+  uses required `PUBLIC_SITE_URL`, validated as a canonical HTTPS origin rather than request headers.
 
 ## App — clean `npm ci`, tests, typecheck, build
 - `npm ci` uses the committed lockfile; `npm audit` reports **0 vulnerabilities**; lint, tests, and
@@ -88,9 +93,9 @@ All **30 timestamped migrations** apply cleanly through `0030_wedding_creation_g
 ## Known follow-ups / integration boundary (before enabling the exchange)
 - **Final real-auth gate**: the GitHub `supabase-real-auth` job must pass. The default psql gate intentionally
   remains fast and uses an auth stub; it does not claim to exercise GoTrue or PostgREST.
-- **Session mint (OTP/magic-link)**: still the remaining integration. Crucially, it must send the OTP to
-  the guest's **invited contact** so the verified session contact matches the link — that is what makes
-  the recipient binding real end-to-end. Until it exists the flag stays off.
+- **Hosted invite certification**: code-only email OTP and persistent sessions are implemented. The remaining
+  release boundary is a green hosted real-auth/browser journey proving the OTP-verified guest contact matches
+  the guest-specific invite contact end-to-end. Until that passes, the production flag stays off.
 - **Service actor context**: the `whatsapp`/`import` RSVP paths don't exist yet. When built, a raw
   service-role call has **no mapped `auth.uid()`**, so `derive_rsvp_authority()`/the confirmer check would
   fail closed. Those commands must establish an explicit trusted acting-account context (e.g. set
@@ -111,5 +116,5 @@ All **30 timestamped migrations** apply cleanly through `0030_wedding_creation_g
 - Wedding creation is restricted to explicitly provisioned accounts (`app.account.can_create_wedding`).
 
 ## Environment note
-`security_invoker` views require **PostgreSQL 15+**; validated here on **16.13** (matches Supabase's
-current Postgres). Confirm your project's PG major version is ≥15.
+`security_invoker` views require **PostgreSQL 15+**; the current clean release gate is validated on
+**PostgreSQL 17**. Confirm your hosted project's PG major version is ≥15.

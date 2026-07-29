@@ -18,7 +18,7 @@ sangam/
   supabase/
     config.toml                           # exposes the `app` schema to PostgREST; local auth config
     migrations/202607*_*.sql              # timestamped Supabase history
-    tests/00..22_*.sql                    # role-based SQL suites (the release gate)
+    tests/00..26_*.sql                    # role-based SQL suites (the release gate)
   app/                                    # Next.js 15 app (App Router)
     app/login, app/auth/*                 # scanner-safe email OTP sign-in
     app/schedule/*                        # personalized schedule + two-step RSVP
@@ -42,7 +42,7 @@ DATABASE_URL="postgres://…" bash scripts/run-sql-suites.sh
 
 # 3) App
 cd app && npm install
-cp .env.production.example .env.local     # fill SUPABASE_URL / ANON / SERVICE_ROLE; INVITE_EXCHANGE_ENABLED=0
+cp .env.production.example .env.local     # fill Supabase values + PUBLIC_SITE_URL; keep invite flag 0
 npm run dev
 ```
 
@@ -62,9 +62,12 @@ bank statements, sources of funds, private balances, or which family funded an i
 
 - RSVP goes **only** through `propose_rsvp_change` → `confirm_rsvp_change`. Never write `event_attendance`
   directly; never use the service role for guest actions.
-- `INVITE_EXCHANGE_ENABLED` stays `0` until email OTP is verified end-to-end and the real-auth suites pass.
+- `INVITE_EXCHANGE_ENABLED` stays `0` in production. Recipient-bound exchange is implemented, but may be
+  enabled only after the expanded real-GoTrue and browser acceptance journey is certified in the hosted environment.
 - Access links are email-only, self-binding, and bound to the exact issue-time contact. Proxy access is via
   `guest_delegation`, not the self-binding link flow.
+- `PUBLIC_SITE_URL` is required for host issuance and must be the canonical public HTTPS origin (for example,
+  `https://sangam.example`) with no path, query, or fragment. Invite URLs never trust request Host/Origin headers.
 - Keep the SQL suites green (CI enforces this on every push) before real-guest rollout.
 - Keep event-manager operations and cost-approver decisions independent; neither role is implied by wedding
   ownership.

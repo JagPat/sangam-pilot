@@ -3,12 +3,14 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverClientRW } from '@/lib/supabase/serverClient';
+import { buildInviteUrl, inviteSiteOrigin, issueInviteForVerifiedUser } from '@/lib/auth/inviteIssuance';
 
 // Organizer guest + invitation management. Every write runs under the signed-in user's own session, so RLS
 // is the real guard: the OWNER can write any guest; a bride/groom-side FAMILY ADMIN can only write rows on
 // their own side (migration 0016) — a cross-side write is denied by the database, not just the UI. RSVPs are
 // deliberately NOT touched here: attendance is written only through the two-step propose/confirm command
-// path, and this screen never uses the service role.
+// path. Invite issuance is the one narrow service command here: it derives the actor from the verified
+// session and PostgreSQL independently re-checks active wedding-owner authority.
 
 function s(fd: FormData, k: string): string {
   return String(fd.get(k) ?? '').trim();
@@ -22,6 +24,40 @@ function done(): never {
 
 function fail(code: string): never {
   redirect(`/host/manage?err=${encodeURIComponent(code)}`);
+}
+
+export type IssueAccessLinkState = { url: string | null; error: string | null };
+
+// A raw link exists only in this server-action response, which is delivered to the issuing operator's
+// form state. The browser supplies only row identifiers; identity comes from auth.getUser(), while the
+// service-only database command independently proves owner access, derives the personal contact, and stores
+// hashes only with a fixed lifetime.
+export async function issueGuestAccessLink(
+  _previous: IssueAccessLinkState,
+  fd: FormData,
+): Promise<IssueAccessLinkState> {
+  if (process.env.INVITE_EXCHANGE_ENABLED !== '1') {
+    return { url: null, error: 'Invite links are not enabled yet.' };
+  }
+
+  const weddingId = s(fd, 'weddingId');
+  const guestId = s(fd, 'guestId');
+  if (!weddingId || !guestId) return { url: null, error: 'Choose a guest before issuing a link.' };
+
+  try {
+    const client = await serverClientRW();
+    const { data: auth, error: authError } = await client.auth.getUser();
+    if (authError || !auth.user) return { url: null, error: 'Please sign in again before issuing a link.' };
+
+    // Validate configuration before creating a one-time token, so a bad site URL cannot leave an active
+    // but undisclosed link behind.
+    const siteOrigin = inviteSiteOrigin();
+    const rawToken = await issueInviteForVerifiedUser(auth.user.id, weddingId, guestId);
+    return { url: buildInviteUrl(rawToken, siteOrigin), error: null };
+  } catch {
+    // Deliberately do not log an RPC response here: it could contain the one-time raw token or contact.
+    return { url: null, error: 'Could not issue that link. Please try again.' };
+  }
 }
 
 // ---- Add a guest (into an existing or brand-new household), with an optional sign-in email ----

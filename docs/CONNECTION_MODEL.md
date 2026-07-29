@@ -19,8 +19,9 @@ application authorization.
 1. **User context (default).** Ordinary guest/host requests run with the end user's Supabase session;
    RLS applies. The browser only ever holds the **anon** key + the user's session — never the
    service-role key.
-2. **Named service commands (narrow).** Imports, webhook processing, and scheduled jobs run with the
-   **service-role** key on the server only. Each is a single named function that:
+2. **Named service commands (narrow).** Imports, webhook processing, scheduled jobs, account linking, and
+   recipient-bound invite issuance/exchange run with the **service-role** key on the server only. Each is a
+   single named function that:
    - takes an explicit `wedding_id` context,
    - asserts a system purpose,
    - and has **its own isolation test** (see `supabase/tests/`).

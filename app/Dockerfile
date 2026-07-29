@@ -29,5 +29,6 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 EXPOSE 3000
 # Runtime env to set on the Coolify service: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
-# INVITE_EXCHANGE_ENABLED (keep 0 until OTP is verified end-to-end).
+# PUBLIC_SITE_URL (canonical HTTPS origin), and INVITE_EXCHANGE_ENABLED (keep 0 until the hosted real-auth
+# and browser acceptance gates are certified).
 CMD ["node", "server.js"]

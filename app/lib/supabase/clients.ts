@@ -2,7 +2,8 @@
 //   - userClient(): DEFAULT. Runs with the user's session (ANON key), so RLS applies. Never use the
 //     service key in the browser.
 //   - serviceCommand(): the ONLY sanctioned service-role entry point. Server-only, explicit wedding
-//     context + named purpose. Use it exclusively for imports, webhooks, and scheduled jobs.
+//     context + named purpose. Use it exclusively for the enumerated imports, webhooks, jobs, account-link,
+//     and recipient-bound invite issuance/exchange commands.
 
 import { createServerClient, type CookieMethodsServer } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -30,7 +31,7 @@ export type AppSupabaseClient = SupabaseClient<Database>;
 // 'invite_exchange' and 'account_link' are the two paths where the wedding is NOT known up front — the
 // invite TOKEN (redeem_and_bind) or the signed-in email (link_signed_in_account, which may match guests in
 // several weddings) is the scoping authority. Every other purpose must pass an explicit wedding context.
-type ServicePurpose = 'guest_import' | 'whatsapp_webhook' | 'scheduled_job' | 'invite_exchange' | 'account_link';
+type ServicePurpose = 'guest_import' | 'whatsapp_webhook' | 'scheduled_job' | 'invite_exchange' | 'invite_issuance' | 'account_link';
 
 // Narrow, named service-role command. Server-only. The raw client is never exported.
 export async function serviceCommand<T>(

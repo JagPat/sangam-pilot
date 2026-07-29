@@ -3,6 +3,7 @@ import { pageClient } from '@/lib/supabase/pageClient';
 import { getManageData, DIETARY_CATEGORIES, JAIN_STRICTNESS, type ManageWedding, type ManageEvent, type ManageGuest } from '@/lib/data/manage';
 import { addGuest, updateGuest, saveDietary, inviteGuest, uninviteGuest, removeGuest, setHouseholdSide } from './actions';
 import { HostNav } from '../HostNav';
+import { IssueAccessLinkForm } from './IssueAccessLinkForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,6 +128,8 @@ function GuestRow({ w, g }: { w: ManageWedding; g: ManageGuest }) {
             <div className="sg-field"><label>Allergies &amp; notes</label><input className="sg-input" name="allergies" defaultValue={g.dietary.allergies ?? ''} placeholder="e.g. peanuts, dairy" /></div>
             <button type="submit" className="sg-btn sg-btn--primary sg-btn--sm">Save dietary</button>
           </form>
+
+          {w.viewerIsOwner ? <IssueAccessLinkForm weddingId={w.weddingId} guestId={g.guestId} /> : null}
 
           {w.viewerIsOwner ? (
             <form action={removeGuest} style={{ marginTop: 10 }}>

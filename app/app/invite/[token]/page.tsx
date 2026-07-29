@@ -9,8 +9,8 @@
 // branch AND only when the session's verified contact matches the invited recipient — so a forwarded link
 // opened by a DIFFERENT authenticated account still sees no name (and cannot redeem in ./actions.ts).
 //
-// The whole route is gated by INVITE_EXCHANGE_ENABLED so it stays dark until the session-mint step is
-// wired up and the DB has been certified against Supabase-local.
+// The whole route is gated by INVITE_EXCHANGE_ENABLED so it stays dark until the hosted real-auth and
+// browser acceptance journey has been certified.
 
 import { notFound } from 'next/navigation';
 import { peekInvite, peekInviteDetails } from '@/lib/auth/accessLink';
@@ -51,7 +51,10 @@ export default async function InvitePage({
     return (
       <main style={wrap}>
         <h1>You&apos;re invited</h1>
-        <p>Please sign in to view your invitation and accept. (Sign-in is the remaining integration step.)</p>
+        <p>Please sign in to view your invitation and accept.</p>
+        <p>
+          <a href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>Sign in to continue</a>
+        </p>
       </main>
     );
   }
@@ -98,8 +101,8 @@ export default async function InvitePage({
         This link is for <strong>{info.guestName ?? 'a guest'}</strong>.
       </p>
       <p>
-        You&apos;re signed in as <strong>{user.email ?? user.id}</strong>. Confirming will link{' '}
-        <strong>this account</strong> to the invitation. Nothing has been linked yet.
+        You&apos;re signed in as <strong>{user.email ?? user.id}</strong>. Your verified email may already have
+        connected this account to your guest profile. Confirm to finish opening this invitation with this account.
       </p>
       {/* POST -> server action: CSRF/origin-protected by Next. The account is re-read from the verified
           session at POST time; the token (below) is the sole wedding/guest authority. */}

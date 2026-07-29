@@ -72,8 +72,8 @@ Each script prints `OK…` lines and raises loudly on any `FAIL`. A clean exit =
   membership, `wedding_owner`, and `event_manager` roles.
 - **19–21** — official Cost Control schema, immutable estimate decisions, commitments, verified invoices,
   bounded payment status, currency-separated aggregate totals, and direct-DML denial.
-- **22_legacy_finance_transition.sql** — only non-private operational targets convert, as submitted estimates
-  requiring approval; private family-linked rows are excluded and all former endpoints fail closed.
+- **22_legacy_finance_transition.sql** — all legacy-finance mappings are quarantined with no Cost Control copies,
+  while the retained legacy rows and every former endpoint remain sealed.
 
 Every suite runs under the single `scripts/run-sql-suites.sh` command above.
 
