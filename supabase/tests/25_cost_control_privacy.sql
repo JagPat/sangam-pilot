@@ -69,7 +69,7 @@ reset role;
 -- Event-manager writes reject explicit labels and do not add a row.
 set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','25000000-0000-0000-0000-000000000001')::text,false);
-do $$ declare v_before integer; begin
+do $$ declare v_before integer; v_label text; begin
   select count(*) into v_before from app.cost_estimate_version where wedding_id='25000000-0000-0000-0000-000000000101';
   begin
     perform app.save_cost_estimate_draft('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,null,
@@ -80,6 +80,20 @@ do $$ declare v_before integer; begin
     raise exception 'FAIL(draft): rejected input wrote an estimate';
   end if;
 
+  perform app.save_cost_estimate_draft('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,null,
+    jsonb_build_object('scope_included','Vendor account manager on site','remarks','Account setup for the vendor portal','subtotal',1,'tax_rate',0,'currency_code','INR'));
+  foreach v_label in array array['Family balance: 500000','Available family balance: 500000','Account number: 1234567890','Account no. 1234567890'] loop
+    select count(*) into v_before from app.cost_estimate_version where wedding_id='25000000-0000-0000-0000-000000000101';
+    begin
+      perform app.save_cost_estimate_draft('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,null,
+        jsonb_build_object('scope_included',v_label,'subtotal',1,'tax_rate',0,'currency_code','INR'));
+      raise exception 'FAIL(draft): prohibited privacy label was accepted: %',v_label;
+    exception when sqlstate '22023' then null; when others then raise; end;
+    if (select count(*) from app.cost_estimate_version where wedding_id='25000000-0000-0000-0000-000000000101')<>v_before then
+      raise exception 'FAIL(draft): rejected input wrote an estimate: %',v_label;
+    end if;
+  end loop;
+
   select count(*) into v_before from app.cost_commitment where wedding_id='25000000-0000-0000-0000-000000000101';
   begin
     perform app.propose_cost_commitment('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,
@@ -88,6 +102,14 @@ do $$ declare v_before integer; begin
   exception when sqlstate '22023' then null; when others then raise; end;
   if (select count(*) from app.cost_commitment where wedding_id='25000000-0000-0000-0000-000000000101')<>v_before then
     raise exception 'FAIL(commitment): rejected input wrote a commitment';
+  end if;
+  begin
+    perform app.propose_cost_commitment('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,
+      current_setting('sangam.t25.estimate')::uuid,null,'Payer family: bride','2026-09-01');
+    raise exception 'FAIL(commitment): prohibited payer family label was accepted';
+  exception when sqlstate '22023' then null; when others then raise; end;
+  if (select count(*) from app.cost_commitment where wedding_id='25000000-0000-0000-0000-000000000101')<>v_before then
+    raise exception 'FAIL(commitment): rejected payer family label wrote a commitment';
   end if;
 
   select count(*) into v_before from app.cost_invoice where wedding_id='25000000-0000-0000-0000-000000000101';
@@ -98,6 +120,14 @@ do $$ declare v_before integer; begin
   exception when sqlstate '22023' then null; when others then raise; end;
   if (select count(*) from app.cost_invoice where wedding_id='25000000-0000-0000-0000-000000000101')<>v_before then
     raise exception 'FAIL(invoice): rejected input wrote an invoice';
+  end if;
+  begin
+    perform app.record_cost_invoice('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,
+      current_setting('sangam.t25.commitment')::uuid,'Paid by family: groom',1,0,'INR',null);
+    raise exception 'FAIL(invoice): prohibited paid by family label was accepted';
+  exception when sqlstate '22023' then null; when others then raise; end;
+  if (select count(*) from app.cost_invoice where wedding_id='25000000-0000-0000-0000-000000000101')<>v_before then
+    raise exception 'FAIL(invoice): rejected paid by family label wrote an invoice';
   end if;
 end $$;
 reset role;

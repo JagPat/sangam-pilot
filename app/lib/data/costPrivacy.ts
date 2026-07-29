@@ -6,6 +6,10 @@ const prohibitedLabels=[
   /\bfunding\s+sources?\b/i,
   /\bcontributions?\b/i,
   /\b(?:family|private)\s+settlements?\b/i,
+  /\b(?:available\s+)?family\s+balance\b/i,
+  /\bpayer\s+family\b/i,
+  /\bpaid\s+by\s+family\b/i,
+  /\baccount\s+(?:number|no\.?)\b/i,
 ];
 
 export function validateOfficialCostText(value:string):{ok:true}|{ok:false;reason:string}{

@@ -3,7 +3,7 @@
 create or replace function app.assert_official_cost_text(p_value text) returns void
 language plpgsql stable set search_path=app,public as $$
 begin
-  if p_value ~* '\m(bank[[:space:]]+(account|a/c)|ifsc|((credit|debit)[[:space:]]+)?card[[:space:]]+(number|no\.?)|source[[:space:]]+of[[:space:]]+funds|funding[[:space:]]+sources?|contributions?|family[[:space:]]+settlements?|private[[:space:]]+settlements?)\M' then
+  if p_value ~* '\m(bank[[:space:]]+(account|a/c)|ifsc|((credit|debit)[[:space:]]+)?card[[:space:]]+(number|no\.?)|source[[:space:]]+of[[:space:]]+funds|funding[[:space:]]+sources?|contributions?|family[[:space:]]+settlements?|private[[:space:]]+settlements?|(available[[:space:]]+)?family[[:space:]]+balance|payer[[:space:]]+family|paid[[:space:]]+by[[:space:]]+family|account[[:space:]]+(number|no\.?))\M' then
     raise exception 'private-finance labels are not allowed in Cost Control' using errcode='22023';
   end if;
 end $$;
