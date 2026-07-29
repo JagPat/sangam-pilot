@@ -10,6 +10,9 @@ const prohibitedLabels=[
   /\bpayer\s+family\b/i,
   /\bpaid\s+by\s+family\b/i,
   /\baccount\s+(?:number|no\.?)\b/i,
+  /\bbank\s+details?\b/i,
+  /\b(?:credit\s+|debit\s+)?card\s+details?\b/i,
+  /\bfamily\s+fundings?\b/i,
 ];
 
 export function validateOfficialCostText(value:string):{ok:true}|{ok:false;reason:string}{

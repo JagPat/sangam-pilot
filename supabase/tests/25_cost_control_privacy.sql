@@ -66,6 +66,31 @@ select set_config('request.jwt.claims',json_build_object('sub','25000000-0000-00
 select app.verify_cost_invoice('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.invoice')::uuid,'Invoice matched to vendor scope');
 reset role;
 
+-- A replacement approval must serialize on the item and supersede the predecessor before taking the unique slot.
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','25000000-0000-0000-0000-000000000001')::text,false);
+do $$ declare v_replacement uuid; begin
+  v_replacement:=app.propose_cost_commitment('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,
+    current_setting('sangam.t25.estimate')::uuid,null,'Vendor quote DECOR-43','2026-09-02');
+  perform set_config('sangam.t25.replacement',v_replacement::text,false);
+end $$;
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','25000000-0000-0000-0000-000000000002')::text,false);
+do $$ begin
+  perform app.decide_cost_commitment('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.replacement')::uuid,'approved','Replacement vendor contract accepted');
+  if not exists(select 1 from app.cost_commitment where id=current_setting('sangam.t25.commitment')::uuid and state='superseded')
+    or not exists(select 1 from app.cost_commitment where id=current_setting('sangam.t25.replacement')::uuid and state='approved') then
+    raise exception 'FAIL(commitment replacement): predecessor/replacement states are wrong';
+  end if;
+  if (select count(*) from app.cost_commitment where wedding_id='25000000-0000-0000-0000-000000000101'
+    and cost_item_id=current_setting('sangam.t25.item')::uuid and state='approved')<>1 then
+    raise exception 'FAIL(commitment replacement): expected one serialized approved commitment';
+  end if;
+end $$;
+reset role;
+
 -- Event-manager writes reject explicit labels and do not add a row.
 set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','25000000-0000-0000-0000-000000000001')::text,false);
@@ -81,8 +106,12 @@ do $$ declare v_before integer; v_label text; begin
   end if;
 
   perform app.save_cost_estimate_draft('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,null,
-    jsonb_build_object('scope_included','Vendor account manager on site','remarks','Account setup for the vendor portal','subtotal',1,'tax_rate',0,'currency_code','INR'));
-  foreach v_label in array array['Family balance: 500000','Available family balance: 500000','Account number: 1234567890','Account no. 1234567890'] loop
+    jsonb_build_object('scope_included','Bank liaison for the venue permit','scope_excluded','Place cards for dinner seating','remarks','Family coordination desk','subtotal',1,'tax_rate',0,'currency_code','INR'));
+  foreach v_label in array array[
+    'Family balance: 500000','Available family balance: 500000','Account number: 1234567890','Account no. 1234567890',
+    'Bank detail: call the host','Bank details: call the host','Card detail: personal','Card details: personal',
+    'Credit card details: personal','Debit card details: personal','Family funding: savings','Family fundings: savings'
+  ] loop
     select count(*) into v_before from app.cost_estimate_version where wedding_id='25000000-0000-0000-0000-000000000101';
     begin
       perform app.save_cost_estimate_draft('25000000-0000-0000-0000-000000000101',current_setting('sangam.t25.item')::uuid,null,

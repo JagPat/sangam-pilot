@@ -3,7 +3,7 @@
 create or replace function app.assert_official_cost_text(p_value text) returns void
 language plpgsql stable set search_path=app,public as $$
 begin
-  if p_value ~* '\m(bank[[:space:]]+(account|a/c)|ifsc|((credit|debit)[[:space:]]+)?card[[:space:]]+(number|no\.?)|source[[:space:]]+of[[:space:]]+funds|funding[[:space:]]+sources?|contributions?|family[[:space:]]+settlements?|private[[:space:]]+settlements?|(available[[:space:]]+)?family[[:space:]]+balance|payer[[:space:]]+family|paid[[:space:]]+by[[:space:]]+family|account[[:space:]]+(number|no\.?))\M' then
+  if p_value ~* '\m(bank[[:space:]]+(account|a/c)|ifsc|((credit|debit)[[:space:]]+)?card[[:space:]]+(number|no\.?)|source[[:space:]]+of[[:space:]]+funds|funding[[:space:]]+sources?|contributions?|family[[:space:]]+settlements?|private[[:space:]]+settlements?|(available[[:space:]]+)?family[[:space:]]+balance|payer[[:space:]]+family|paid[[:space:]]+by[[:space:]]+family|account[[:space:]]+(number|no\.?)|bank[[:space:]]+details?|((credit|debit)[[:space:]]+)?card[[:space:]]+details?|family[[:space:]]+fundings?)\M' then
     raise exception 'private-finance labels are not allowed in Cost Control' using errcode='22023';
   end if;
 end $$;
@@ -129,9 +129,16 @@ begin
   if nullif(trim(coalesce(p_reason,'')),'') is null then raise exception 'decision reason is required'; end if;
   select cost_item_id,proposed_by_account_id into v_item,v_proposer from app.cost_commitment where wedding_id=p_wedding and id=p_commitment and state='proposed' for update;
   if not found then raise exception 'commitment is not pending' using errcode='SA031'; end if;
+  perform 1 from app.cost_item where wedding_id=p_wedding and id=v_item for update;
   if v_proposer=v_actor then raise exception 'proposer cannot approve their own commitment' using errcode='42501'; end if;
-  update app.cost_commitment set state=p_decision::app.cost_commitment_state,approved_by_account_id=v_actor,decision_reason=trim(p_reason),decided_at=now() where wedding_id=p_wedding and id=p_commitment;
-  if p_decision='approved' then update app.cost_commitment set state='superseded' where wedding_id=p_wedding and cost_item_id=v_item and state='approved' and id<>p_commitment; update app.cost_item set lifecycle_state='committed',updated_at=now() where wedding_id=p_wedding and id=v_item; end if;
+  if p_decision='approved' then
+    update app.cost_commitment set state='superseded' where wedding_id=p_wedding and cost_item_id=v_item and state='approved' and id<>p_commitment;
+  end if;
+  update app.cost_commitment set state=p_decision::app.cost_commitment_state,approved_by_account_id=v_actor,
+    decision_reason=trim(p_reason),decided_at=now() where wedding_id=p_wedding and id=p_commitment;
+  if p_decision='approved' then
+    update app.cost_item set lifecycle_state='committed',updated_at=now() where wedding_id=p_wedding and id=v_item;
+  end if;
 end $$;
 
 create or replace function app.record_cost_invoice(
