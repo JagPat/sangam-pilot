@@ -3,13 +3,14 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { serverClientRW } from '@/lib/supabase/serverClient';
-import { buildInviteUrl, issueInviteForVerifiedUser } from '@/lib/auth/inviteIssuance';
+import { buildInviteUrl, inviteSiteOrigin, issueInviteForVerifiedUser } from '@/lib/auth/inviteIssuance';
 
 // Organizer guest + invitation management. Every write runs under the signed-in user's own session, so RLS
 // is the real guard: the OWNER can write any guest; a bride/groom-side FAMILY ADMIN can only write rows on
 // their own side (migration 0016) — a cross-side write is denied by the database, not just the UI. RSVPs are
 // deliberately NOT touched here: attendance is written only through the two-step propose/confirm command
-// path, and this screen never uses the service role.
+// path. Invite issuance is the one narrow service command here: it derives the actor from the verified
+// session and PostgreSQL independently re-checks active wedding-owner authority.
 
 function s(fd: FormData, k: string): string {
   return String(fd.get(k) ?? '').trim();
@@ -48,8 +49,11 @@ export async function issueGuestAccessLink(
     const { data: auth, error: authError } = await client.auth.getUser();
     if (authError || !auth.user) return { url: null, error: 'Please sign in again before issuing a link.' };
 
+    // Validate configuration before creating a one-time token, so a bad site URL cannot leave an active
+    // but undisclosed link behind.
+    const siteOrigin = inviteSiteOrigin();
     const rawToken = await issueInviteForVerifiedUser(auth.user.id, weddingId, guestId);
-    return { url: buildInviteUrl(rawToken), error: null };
+    return { url: buildInviteUrl(rawToken, siteOrigin), error: null };
   } catch {
     // Deliberately do not log an RPC response here: it could contain the one-time raw token or contact.
     return { url: null, error: 'Could not issue that link. Please try again.' };

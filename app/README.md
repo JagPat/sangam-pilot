@@ -5,7 +5,8 @@ migrations, RLS, and `propose/confirm` RSVP contract.
 
 ## What's wired
 - `lib/supabase/clients.ts` — user-context client (RLS applies; anon key) + a narrow, server-only
-  `serviceCommand()` for imports/webhooks/jobs. The service-role key never reaches the browser.
+  `serviceCommand()` for imports/webhooks/jobs plus the narrowly authorized invite issuance/exchange paths.
+  The service-role key never reaches the browser.
 - `lib/commands/rsvp.ts` — the single RSVP path (`proposeRsvpChange` → `confirmRsvpChange`). The
   WhatsApp bot fast-follow must call the same SQL functions.
 - `lib/auth/accessLink.ts` — invite token helpers: `peekInvite()` (READ-ONLY validity check, **no PII** —

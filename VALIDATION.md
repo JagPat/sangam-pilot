@@ -116,5 +116,5 @@ release gate. On 2026-07-29 they passed from scratch against an isolated local P
 - Wedding creation is restricted to explicitly provisioned accounts (`app.account.can_create_wedding`).
 
 ## Environment note
-`security_invoker` views require **PostgreSQL 15+**; validated here on **16.13** (matches Supabase's
-current Postgres). Confirm your project's PG major version is ≥15.
+`security_invoker` views require **PostgreSQL 15+**; the current clean release gate is validated on
+**PostgreSQL 17**. Confirm your hosted project's PG major version is ≥15.

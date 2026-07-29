@@ -2,7 +2,8 @@
 //   - userClient(): DEFAULT. Runs with the user's session (ANON key), so RLS applies. Never use the
 //     service key in the browser.
 //   - serviceCommand(): the ONLY sanctioned service-role entry point. Server-only, explicit wedding
-//     context + named purpose. Use it exclusively for imports, webhooks, and scheduled jobs.
+//     context + named purpose. Use it exclusively for the enumerated imports, webhooks, jobs, account-link,
+//     and recipient-bound invite issuance/exchange commands.
 
 import { createServerClient, type CookieMethodsServer } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';

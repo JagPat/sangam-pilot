@@ -39,6 +39,12 @@ async function startVerifierApp() {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      // `supabase status -o env` exposes API_URL/ANON_KEY/SERVICE_ROLE_KEY. The application itself
+      // deliberately uses the production variable names, so normalize them for the spawned Next server.
+      SUPABASE_URL: url,
+      SUPABASE_ANON_KEY: anonKey,
+      SUPABASE_SERVICE_ROLE_KEY: serviceKey,
+      PUBLIC_SITE_URL: baseUrl,
       INVITE_EXCHANGE_ENABLED: '1',
       SANGAM_REAL_AUTH_TEST: '1',
       NODE_ENV: 'development',

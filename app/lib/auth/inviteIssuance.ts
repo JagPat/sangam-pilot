@@ -1,6 +1,6 @@
 import { serviceCommand } from '@/lib/supabase/clients';
 
-export function buildInviteUrl(rawToken: string): string {
+export function inviteSiteOrigin(): string {
   const configuredValue = process.env.PUBLIC_SITE_URL;
   if (!configuredValue) throw new Error('PUBLIC_SITE_URL is required for invite issuance');
 
@@ -22,7 +22,11 @@ export function buildInviteUrl(rawToken: string): string {
     throw new Error('PUBLIC_SITE_URL must be an HTTPS origin without a path, query, or fragment');
   }
 
-  return new URL(`/invite/${encodeURIComponent(rawToken)}`, configured.origin).toString();
+  return configured.origin;
+}
+
+export function buildInviteUrl(rawToken: string, siteOrigin = inviteSiteOrigin()): string {
+  return new URL(`/invite/${encodeURIComponent(rawToken)}`, siteOrigin).toString();
 }
 
 // The auth user id must come from auth.getUser(). The service lookup converts that verified identity to the

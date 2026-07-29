@@ -41,7 +41,7 @@ describe('recipient-bound invitation journey contract', () => {
   it('issues through the server-only command using only verified-session identity and row identifiers', () => {
     expect(manageActions).toContain('export async function issueGuestAccessLink');
     expect(manageActions).toContain('issueInviteForVerifiedUser(auth.user.id, weddingId, guestId)');
-    expect(manageActions).toContain('buildInviteUrl(rawToken)');
+    expect(manageActions).toContain('buildInviteUrl(rawToken, siteOrigin)');
     expect(manageActions).not.toContain("from('household_contact')");
     expect(manageActions).not.toContain("rpc('issue_guest_access_link'");
     expect(manageActions).not.toContain("rpc('issue_access_link'");
@@ -51,14 +51,17 @@ describe('recipient-bound invitation journey contract', () => {
   });
 
   it('returns an absolute invite URL from the configured canonical HTTPS site origin', () => {
-    expect(manageActions).toContain('buildInviteUrl(rawToken)');
+    expect(manageActions).toContain('buildInviteUrl(rawToken, siteOrigin)');
     expect(inviteIssuance).toContain("configured.protocol !== 'https:'");
     expect(inviteIssuance).toContain("configured.pathname !== '/'");
-    expect(inviteIssuance).toContain('new URL(`/invite/${encodeURIComponent(rawToken)}`, configured.origin)');
+    expect(inviteIssuance).toContain('new URL(`/invite/${encodeURIComponent(rawToken)}`, siteOrigin)');
     expect(envExample).toContain('PUBLIC_SITE_URL=');
     expect(productionEnvExample).toContain('PUBLIC_SITE_URL=https://');
     expect(manageActions).not.toContain("headers().get('host')");
     expect(manageActions).not.toContain("headers().get('origin')");
+    expect(manageActions.indexOf('const siteOrigin = inviteSiteOrigin()')).toBeLessThan(
+      manageActions.indexOf('issueInviteForVerifiedUser(auth.user.id, weddingId, guestId)'),
+    );
   });
 
   it('does not claim the OTP flow left the guest unlinked', () => {
@@ -86,5 +89,12 @@ describe('recipient-bound invitation journey contract', () => {
     expect(localVerifier).toContain('p_account: wrongAccount.data.id');
     expect(localVerifier).toContain('p_verified_contact: intendedEmail');
     expect(localVerifier).toContain('/link already used/i');
+  });
+
+  it('normalizes Supabase CLI environment names for the spawned verifier app', () => {
+    expect(localVerifier).toContain('SUPABASE_URL: url');
+    expect(localVerifier).toContain('SUPABASE_ANON_KEY: anonKey');
+    expect(localVerifier).toContain('SUPABASE_SERVICE_ROLE_KEY: serviceKey');
+    expect(localVerifier).toContain('PUBLIC_SITE_URL: baseUrl');
   });
 });
