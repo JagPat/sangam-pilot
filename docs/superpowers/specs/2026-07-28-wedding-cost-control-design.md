@@ -1,7 +1,7 @@
 # Sangam Wedding Cost Control Design
 
-**Date:** 2026-07-28  
-**Status:** Approved product direction; written specification awaiting final review  
+**Date:** 2026-07-28
+**Status:** Approved product direction; written specification awaiting final review
 **Scope:** Replace the current funding/private-finance model with official wedding cost planning, approval, commitment, invoice, and payment-status control.
 
 ## 1. Product boundary
