@@ -21,6 +21,7 @@ export const OWNER_SECTIONS: NavSection[] = [
 
 const COSTS_SECTION: NavSection = { href: '/host/costs', label: 'Costs', key: 'costs' };
 const FINANCE_SECTION: NavSection = { href: '/host/finance', label: 'Private finance', key: 'finance' };
+const PLATFORM_SECTION: NavSection = { href: '/host/platform', label: 'Platform', key: 'platform' };
 const FAMILY_SECTIONS: NavSection[] = [
   { href: '/host/manage', label: 'Guests', key: 'manage' },
   { href: '/host/events', label: 'Events', key: 'events' },
@@ -28,7 +29,10 @@ const FAMILY_SECTIONS: NavSection[] = [
   { href: '/host/budget', label: 'Finance & vendors', key: 'budget' },
 ];
 
-export function navigationForRoles(roles: string[]): Pick<OrganizerNav, 'roleLabel' | 'sections'> {
+export function navigationForRoles(
+  roles: string[],
+  isPlatformSuperAdmin = false,
+): Pick<OrganizerNav, 'roleLabel' | 'sections'> {
   const rs = new Set(roles);
   const sections: NavSection[] = [];
   const add = (items: NavSection[]) => items.forEach((item) => {
@@ -38,7 +42,9 @@ export function navigationForRoles(roles: string[]): Pick<OrganizerNav, 'roleLab
   if (rs.has('host_group_admin')) add(FAMILY_SECTIONS);
   if (rs.has('event_manager')) add([COSTS_SECTION]);
   if (rs.has('finance_admin')) add([FINANCE_SECTION]);
-  const roleLabel = rs.has('event_manager') ? 'Event manager'
+  if (isPlatformSuperAdmin) add([PLATFORM_SECTION]);
+  const roleLabel = isPlatformSuperAdmin ? 'Platform administrator'
+    : rs.has('event_manager') ? 'Event manager'
     : rs.has('finance_admin') ? 'Finance administrator'
     : rs.has('wedding_owner') ? 'Wedding administrator'
     : rs.has('host_group_admin') ? 'Family admin'
@@ -53,12 +59,13 @@ export async function getOrganizerNav(db: AppSupabaseClient): Promise<OrganizerN
   const accountId = (accId as unknown as string | null) ?? null;
   if (eAcc || !accountId) return { email: null, roleLabel: null, sections: [] };
 
-  const [acc, roles] = await Promise.all([
+  const [acc, roles, platform] = await Promise.all([
     app.from('account').select('email').eq('id', accountId).maybeSingle(),
     app.from('operator_role').select('role').eq('account_id', accountId),
+    app.rpc('is_platform_super_admin'),
   ]);
   const email = acc.data?.email ?? null;
   const rs = new Set((roles.data ?? []).map((r) => r.role));
 
-  return { email, ...navigationForRoles([...rs]) };
+  return { email, ...navigationForRoles([...rs], platform.data === true) };
 }

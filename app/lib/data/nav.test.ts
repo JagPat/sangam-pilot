@@ -29,4 +29,9 @@ describe('finance-aware organizer navigation',()=>{
     expect(nav.sections.map((s)=>s.key)).toContain('costs');
     expect(nav.sections.map((s)=>s.key)).not.toContain('finance');
   });
+
+  it('adds platform provisioning only for an explicit platform super-admin capability',()=>{
+    expect(navigationForRoles([],true).sections.map((s)=>s.key)).toContain('platform');
+    expect(navigationForRoles(['wedding_owner'],false).sections.map((s)=>s.key)).not.toContain('platform');
+  });
 });

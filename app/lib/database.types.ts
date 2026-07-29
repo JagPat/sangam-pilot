@@ -135,6 +135,18 @@ export type Database = {
       finance_funding_status: { Row: FinanceFundingStatusRow; Relationships: [] };
     };
     Functions: {
+      current_account_can_create_wedding: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      is_platform_super_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      super_admin_set_wedding_creator: {
+        Args: { p_email: string; p_enabled: boolean };
+        Returns: string;
+      };
       // Recipient-bound: the verified session contact must match the invited contact.
       redeem_and_bind: {
         Args: { p_raw: string; p_account: string; p_verified_contact: string };

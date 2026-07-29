@@ -19,4 +19,8 @@ describe('loginDestinationForSession', () => {
   it('renders the login form for an anonymous visitor', () => {
     expect(loginDestinationForSession(null, null, [])).toBeNull();
   });
+
+  it('returns an existing session for a provisioned creator to setup without another OTP', () => {
+    expect(loginDestinationForSession(verifiedUser, null, [], true)).toBe('/host/setup');
+  });
 });
