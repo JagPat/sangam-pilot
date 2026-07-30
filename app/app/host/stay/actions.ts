@@ -100,7 +100,7 @@ export async function allocateHousehold(fd: FormData): Promise<void> {
     const { error } = await app.rpc('owner_save_room_allocation_draft', {
       p_wedding: weddingId, p_allocation: null, p_room: roomId, p_primary_household: householdId,
       p_plan: occupancyPlan, p_guest_ids: guestIds, p_check_in: checkIn, p_check_out: checkOut,
-      p_single_reason: singleReason, p_expected_revision: null,
+      p_single_reason: singleReason, p_notes: null, p_expected_revision: null,
     });
     if (error) { if (errCode(error) === '23505') code = 'occupied'; throw error; }
   } catch (e) {

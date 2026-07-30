@@ -1,6 +1,8 @@
 import { createSign } from 'node:crypto';
 import { ROOM_SHEET_TABS,type RoomSheetsGateway } from './roomSheetsGateway';
 type Credentials={client_email:string;private_key:string;token_uri?:string};
+type SheetMetadata={properties:{title:string;timeZone:string};sheets:Array<{properties:{sheetId:number;title:string};protectedRanges?:Array<{protectedRangeId:number;description?:string;warningOnly?:boolean}>}>};
+const PROTECTION_DESCRIPTION='Sangam identity and room master fields — edit in Sangam';
 const b64=(value:string|Buffer)=>Buffer.from(value).toString('base64url');
 let cached:{token:string;expires:number}|null=null;
 async function accessToken(c:Credentials){
@@ -17,13 +19,20 @@ export class GoogleRoomSheetsGateway implements RoomSheetsGateway{
  constructor(private spreadsheetId:string,private credentials:Credentials){}
  private async request(path:string,init:RequestInit={}){const token=await accessToken(this.credentials);const response=await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${this.spreadsheetId}${path}`,
   {...init,headers:{authorization:`Bearer ${token}`,'content-type':'application/json',...(init.headers??{})}});if(!response.ok)throw new Error(`Google Sheets request failed (${response.status})`);return response.status===204?{}:response.json();}
- async getWorkbook(){const data=await this.request('?fields=properties(title,timeZone),sheets(properties(sheetId,title))') as {properties:{title:string;timeZone:string};sheets:Array<{properties:{sheetId:number;title:string}}>};
+ private async metadata(){return this.request('?fields=properties(title,timeZone),sheets(properties(sheetId,title),protectedRanges(protectedRangeId,description,warningOnly))') as Promise<SheetMetadata>;}
+ async getWorkbook(){const data=await this.metadata();
   return {title:data.properties.title,timeZone:data.properties.timeZone,sheets:data.sheets.map((s)=>s.properties.title)};}
- async ensureOperationalTabs(timeZone:string){const book=await this.getWorkbook();const missing=ROOM_SHEET_TABS.filter((t)=>!book.sheets.includes(t));
+ async ensureOperationalTabs(timeZone:string){const initial=await this.metadata();const missing=ROOM_SHEET_TABS.filter((t)=>!initial.sheets.some((s)=>s.properties.title===t));
   const requests:unknown[]=[{updateSpreadsheetProperties:{properties:{timeZone},fields:'timeZone'}},...missing.map((title)=>({addSheet:{properties:{title,gridProperties:{frozenRowCount:1}}}}))];
-  const result=await this.request(':batchUpdate',{method:'POST',body:JSON.stringify({requests})}) as {replies?:Array<{addSheet?:{properties:{sheetId:number;title:string}}}>};
-  const allocation=result.replies?.find((r)=>r.addSheet?.properties.title==='Room Allocation')?.addSheet?.properties;
-  if(allocation)await this.request(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[{addProtectedRange:{protectedRange:{range:{sheetId:allocation.sheetId,startRowIndex:0,endRowIndex:1000,startColumnIndex:0,endColumnIndex:9},description:'Sangam sync identity — do not edit',warningOnly:false}}},{updateDimensionProperties:{range:{sheetId:allocation.sheetId,dimension:'COLUMNS',startIndex:0,endIndex:9},properties:{hiddenByUser:true},fields:'hiddenByUser'}}]})});
+  await this.request(':batchUpdate',{method:'POST',body:JSON.stringify({requests})});
+  const current=await this.metadata();const allocation=current.sheets.find((s)=>s.properties.title==='Room Allocation');
+  if(!allocation)throw new Error('Room Allocation tab could not be created');
+  const existing=allocation.protectedRanges?.find((p)=>p.description===PROTECTION_DESCRIPTION);
+  const protection={range:{sheetId:allocation.properties.sheetId,startRowIndex:0,endRowIndex:1000,startColumnIndex:0,endColumnIndex:12},description:PROTECTION_DESCRIPTION,warningOnly:false,editors:{users:[this.credentials.client_email]}};
+  const harden=existing
+   ? [{updateProtectedRange:{protectedRange:{protectedRangeId:existing.protectedRangeId,...protection},fields:'range,description,warningOnly,editors'}}]
+   : [{addProtectedRange:{protectedRange:protection}}];
+  await this.request(':batchUpdate',{method:'POST',body:JSON.stringify({requests:[...harden,{updateDimensionProperties:{range:{sheetId:allocation.properties.sheetId,dimension:'COLUMNS',startIndex:0,endIndex:9},properties:{hiddenByUser:true},fields:'hiddenByUser'}}]})});
  }
  async readRows(tab:typeof ROOM_SHEET_TABS[number]){const range=encodeURIComponent(`'${tab}'!A1:Z1000`);const data=await this.request(`/values/${range}?majorDimension=ROWS`) as {values?:string[][]};return data.values??[];}
  async replaceRows(tab:typeof ROOM_SHEET_TABS[number],rows:string[][]){const range=encodeURIComponent(`'${tab}'!A:Z`);await this.request(`/values/${range}:clear`,{method:'POST',body:'{}'});

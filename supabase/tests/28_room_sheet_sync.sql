@@ -24,21 +24,36 @@ do $$ declare h uuid; r uuid; a uuid; run_id uuid; change_id uuid; result jsonb;
  insert into app.hotel(wedding_id,name) values('28bb0000-0000-0000-0000-000000000001','Suryagarh') returning id into h;
  select app.owner_create_room_draft('28bb0000-0000-0000-0000-000000000001',h,'SUR-001',null,2,'double') into r;
  select allocation_id into a from app.owner_save_room_allocation_draft('28bb0000-0000-0000-0000-000000000001',null,r,'28cc0000-0000-0000-0000-000000000001','double',
-  array['28dd0000-0000-0000-0000-000000000001'::uuid,'28dd0000-0000-0000-0000-000000000002'::uuid],null,null,null,null);
+  array['28dd0000-0000-0000-0000-000000000001'::uuid,'28dd0000-0000-0000-0000-000000000002'::uuid],null,null,null,null,null);
  perform app.owner_configure_room_sheet('28bb0000-0000-0000-0000-000000000001','pilot-sheet-id');
  select app.owner_begin_room_sheet_review('28bb0000-0000-0000-0000-000000000001') into run_id;
  select app.owner_stage_room_sheet_change('28bb0000-0000-0000-0000-000000000001',run_id,'row-1',a,r,1,
   jsonb_build_object('occupancyPlan','double','guestIds',jsonb_build_array('28dd0000-0000-0000-0000-000000000001','28dd0000-0000-0000-0000-000000000002'),
-  'checkIn','2026-12-01','checkOut','2026-12-04','status','confirmed','action','update')) into change_id;
+  'checkIn','2026-12-01','checkOut','2026-12-04','status','confirmed','notes','Late arrival','action','update')) into change_id;
  perform app.owner_preview_room_sheet_changes('28bb0000-0000-0000-0000-000000000001',run_id);
  if not exists(select 1 from app.sheet_sync_change where id=change_id and validation_status='accepted') then raise exception 'FAIL(preview)'; end if;
  select app.owner_commit_room_sheet_changes('28bb0000-0000-0000-0000-000000000001',run_id,array[change_id]) into result;
  if result->>'committed' <> '1' then raise exception 'FAIL(commit): %',result; end if;
  if (select status from app.room_allocation where id=a)<>'confirmed' then raise exception 'FAIL(operation)'; end if;
+ if (select notes from app.room_allocation where id=a)<>'Late arrival' then raise exception 'FAIL(notes)'; end if;
+ if (select primary_household_id from app.room_allocation where id=a)<>'28cc0000-0000-0000-0000-000000000001' then raise exception 'FAIL(primary-household)'; end if;
  if app.owner_commit_room_sheet_changes('28bb0000-0000-0000-0000-000000000001',run_id,array[change_id])<>result then raise exception 'FAIL(idempotent)'; end if;
  begin insert into app.sheet_sync_change(wedding_id,run_id,change_key,allocation_id,room_id,base_revision,proposed) values
   ('28bb0000-0000-0000-0000-000000000001',run_id,'forged',a,r,2,'{}'); raise exception 'FAIL(direct-write)';
  exception when insufficient_privilege then null; end;
+end $$;
+
+do $$ declare a uuid; r uuid; run_id uuid; change_id uuid; begin
+ select id,room_id into a,r from app.room_allocation where wedding_id='28bb0000-0000-0000-0000-000000000001';
+ select app.owner_begin_room_sheet_review('28bb0000-0000-0000-0000-000000000001') into run_id;
+ select app.owner_stage_room_sheet_change('28bb0000-0000-0000-0000-000000000001',run_id,'invalid-capacity',a,r,2,
+  jsonb_build_object('occupancyPlan','single','guestIds',jsonb_build_array('28dd0000-0000-0000-0000-000000000001','28dd0000-0000-0000-0000-000000000002'),
+  'checkIn','2026-12-04','checkOut','2026-12-01','status','confirmed','singleReason','','action','update')) into change_id;
+ perform app.owner_preview_room_sheet_changes('28bb0000-0000-0000-0000-000000000001',run_id);
+ if not exists(select 1 from app.sheet_sync_change where id=change_id and validation_status='rejected'
+   and validation_codes @> array['invalid_date_order','occupancy_count_mismatch','single_reason_required']) then
+  raise exception 'FAIL(domain-preview)';
+ end if;
 end $$;
 
 select set_config('request.jwt.claims',json_build_object('sub','28000000-0000-0000-0000-000000000002')::text,true);

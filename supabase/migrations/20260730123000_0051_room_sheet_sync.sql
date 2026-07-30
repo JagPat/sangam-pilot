@@ -59,29 +59,72 @@ language plpgsql security definer set search_path=app,public as $$ declare v_id 
 end $$;
 
 create function app.owner_preview_room_sheet_changes(p_wedding uuid,p_run uuid) returns void
-language plpgsql security definer set search_path=app,public as $$ begin
+language plpgsql security definer set search_path=app,public as $$
+declare c record; v_codes text[]; v_plan text; v_status text; v_guest_count int; v_check_in date; v_check_out date; v_guest uuid; v_seen uuid[];
+begin
  if not app.is_wedding_owner(p_wedding) then raise insufficient_privilege using message='only the wedding owner can preview Sheet changes'; end if;
  perform 1 from app.sheet_sync_run where wedding_id=p_wedding and id=p_run and status='detected' for update;
  if not found then raise exception 'review run is not open'; end if;
- update app.sheet_sync_change c set
-  validation_status=case when a.sync_revision=c.base_revision and a.room_id=c.room_id then 'accepted'::app.sheet_change_status else 'rejected'::app.sheet_change_status end,
-  validation_codes=case when a.sync_revision<>c.base_revision then array['stale_revision']::text[]
-                        when a.room_id<>c.room_id then array['room_mismatch']::text[] else '{}'::text[] end
- from app.room_allocation a where c.wedding_id=p_wedding and c.run_id=p_run and a.wedding_id=c.wedding_id and a.id=c.allocation_id;
- update app.sheet_sync_change set validation_status='rejected',validation_codes=array['unknown_or_deleted_id']
-  where wedding_id=p_wedding and run_id=p_run and validation_status='pending';
+ for c in select sc.*,a.sync_revision as current_revision,a.room_id as current_room,r.capacity
+   from app.sheet_sync_change sc
+   left join app.room_allocation a on a.wedding_id=sc.wedding_id and a.id=sc.allocation_id
+   left join app.room r on r.wedding_id=sc.wedding_id and r.id=sc.room_id
+   where sc.wedding_id=p_wedding and sc.run_id=p_run order by sc.id for update of sc
+ loop
+  v_codes:='{}'::text[];
+  if c.current_revision is null or c.room_id is null or c.capacity is null then v_codes:=array_append(v_codes,'unknown_or_deleted_id');
+  else
+   if c.current_revision<>c.base_revision then v_codes:=array_append(v_codes,'stale_revision'); end if;
+   if c.current_room<>c.room_id then v_codes:=array_append(v_codes,'room_mismatch'); end if;
+  end if;
+  if coalesce(c.proposed->>'action','update')<>'cancel' then
+   v_plan:=c.proposed->>'occupancyPlan'; v_status:=coalesce(c.proposed->>'status','held');
+   if coalesce(v_plan,'') not in('single','double','triple') then v_codes:=array_append(v_codes,'invalid_occupancy'); end if;
+   if coalesce(v_status,'') not in('held','confirmed') then v_codes:=array_append(v_codes,'invalid_status'); end if;
+   if jsonb_typeof(coalesce(c.proposed->'guestIds','[]'::jsonb)) is distinct from 'array' then
+    v_codes:=array_append(v_codes,'invalid_guests'); v_guest_count:=0;
+   else
+    v_guest_count:=jsonb_array_length(coalesce(c.proposed->'guestIds','[]'::jsonb)); v_seen:='{}'::uuid[];
+    begin
+     for v_guest in select value::uuid from jsonb_array_elements_text(coalesce(c.proposed->'guestIds','[]'::jsonb)) loop
+      if v_guest=any(v_seen) then v_codes:=array_append(v_codes,'duplicate_guest');
+      elsif not exists(select 1 from app.guest g where g.wedding_id=p_wedding and g.id=v_guest) then v_codes:=array_append(v_codes,'unknown_guest');
+      elsif exists(select 1 from app.room_occupant o join app.room_allocation a on a.wedding_id=o.wedding_id and a.id=o.allocation_id
+        where o.wedding_id=p_wedding and o.guest_id=v_guest and o.allocation_id<>c.allocation_id and a.status in('held','confirmed','checked_in')) then
+        v_codes:=array_append(v_codes,'guest_already_allocated');
+      end if;
+      v_seen:=array_append(v_seen,v_guest);
+     end loop;
+    exception when invalid_text_representation then v_codes:=array_append(v_codes,'unknown_guest'); end;
+   end if;
+   if c.capacity is not null and v_guest_count>c.capacity then v_codes:=array_append(v_codes,'room_capacity_exceeded'); end if;
+   begin
+    v_check_in:=nullif(c.proposed->>'checkIn','')::date; v_check_out:=nullif(c.proposed->>'checkOut','')::date;
+    if v_check_in is not null and v_check_out is not null and v_check_out<v_check_in then v_codes:=array_append(v_codes,'invalid_date_order'); end if;
+   exception when datetime_field_overflow or invalid_datetime_format then v_codes:=array_append(v_codes,'invalid_date'); end;
+   if v_status='confirmed' then
+    if (v_plan='single' and v_guest_count<>1) or (v_plan='double' and v_guest_count<>2) or (v_plan='triple' and v_guest_count<>3) then
+     v_codes:=array_append(v_codes,'occupancy_count_mismatch');
+    end if;
+    if v_plan='single' and nullif(trim(c.proposed->>'singleReason'),'') is null then v_codes:=array_append(v_codes,'single_reason_required'); end if;
+   end if;
+  end if;
+  update app.sheet_sync_change set validation_status=case when cardinality(v_codes)=0 then 'accepted'::app.sheet_change_status else 'rejected'::app.sheet_change_status end,
+    validation_codes=(select coalesce(array_agg(distinct x),'{}'::text[]) from unnest(v_codes) x) where id=c.id;
+ end loop;
  update app.sheet_sync_run set status='validated' where wedding_id=p_wedding and id=p_run;
 end $$;
 
 create function app.owner_commit_room_sheet_changes(p_wedding uuid,p_run uuid,p_change_ids uuid[]) returns jsonb
 language plpgsql security definer set search_path=app,public as $$
-declare v_status app.sheet_sync_run_status; v_result jsonb; v_count int; v_revision bigint; c record; v_guests uuid[]; v_saved record;
+declare v_status app.sheet_sync_run_status; v_result jsonb; v_count int; v_revision bigint; c record; v_guests uuid[]; v_saved record; v_household uuid;
 begin
  if not app.is_wedding_owner(p_wedding) then raise insufficient_privilege using message='only the wedding owner can commit Sheet changes'; end if;
  select status,result into v_status,v_result from app.sheet_sync_run where wedding_id=p_wedding and id=p_run for update;
  if not found then raise exception 'unknown Sheet review run'; end if;
  if v_status='committed' then return v_result; end if;
  if v_status<>'validated' then raise exception 'Sheet review must be validated before commit'; end if;
+ if coalesce(cardinality(p_change_ids),0)=0 then raise exception 'select at least one accepted Sheet change'; end if;
  select count(*) into v_count from app.sheet_sync_change where wedding_id=p_wedding and run_id=p_run and id=any(p_change_ids) and validation_status='accepted';
  if v_count<>cardinality(p_change_ids) then raise exception 'one or more selected Sheet changes are invalid or stale' using errcode='SR409'; end if;
  update app.sheet_sync_run set status='committing' where wedding_id=p_wedding and id=p_run;
@@ -90,9 +133,10 @@ begin
    v_revision:=app.owner_cancel_room_allocation(p_wedding,c.allocation_id,c.base_revision);
   else
    select coalesce(array_agg(value::uuid),'{}'::uuid[]) into v_guests from jsonb_array_elements_text(coalesce(c.proposed->'guestIds','[]'));
-   select * into v_saved from app.owner_save_room_allocation_draft(p_wedding,c.allocation_id,c.room_id,null,
+   select primary_household_id into v_household from app.room_allocation where wedding_id=p_wedding and id=c.allocation_id;
+   select * into v_saved from app.owner_save_room_allocation_draft(p_wedding,c.allocation_id,c.room_id,v_household,
     coalesce(c.proposed->>'occupancyPlan','double')::app.occupancy_plan,v_guests,nullif(c.proposed->>'checkIn','')::date,
-    nullif(c.proposed->>'checkOut','')::date,nullif(c.proposed->>'singleReason',''),c.base_revision);
+    nullif(c.proposed->>'checkOut','')::date,nullif(c.proposed->>'singleReason',''),nullif(c.proposed->>'notes',''),c.base_revision);
    v_revision:=v_saved.sync_revision;
    if c.proposed->>'status'='confirmed' then v_revision:=app.owner_confirm_room_allocation(p_wedding,c.allocation_id,v_revision); end if;
   end if;

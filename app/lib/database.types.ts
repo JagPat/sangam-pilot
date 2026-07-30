@@ -247,7 +247,7 @@ export type Database = {
       organizer_invite_guest: { Args: { p_wedding: string; p_guest: string; p_household: string; p_instance: string }; Returns: string };
       owner_create_room_draft: { Args: { p_wedding: string; p_hotel: string; p_provisional: string; p_physical: string | null; p_capacity: number; p_plan: string }; Returns: string };
       owner_update_room_identity: { Args: { p_wedding: string; p_room: string; p_provisional: string; p_physical: string | null; p_capacity: number; p_inventory: string; p_expected_revision: number }; Returns: number };
-      owner_save_room_allocation_draft: { Args: { p_wedding: string; p_allocation: string | null; p_room: string; p_primary_household: string | null; p_plan: string; p_guest_ids: string[]; p_check_in: string | null; p_check_out: string | null; p_single_reason: string | null; p_expected_revision: number | null }; Returns: { allocation_id: string; sync_revision: number }[] };
+      owner_save_room_allocation_draft: { Args: { p_wedding: string; p_allocation: string | null; p_room: string; p_primary_household: string | null; p_plan: string; p_guest_ids: string[]; p_check_in: string | null; p_check_out: string | null; p_single_reason: string | null; p_notes: string | null; p_expected_revision: number | null }; Returns: { allocation_id: string; sync_revision: number }[] };
       owner_confirm_room_allocation: { Args: { p_wedding: string; p_allocation: string; p_expected_revision: number }; Returns: number };
       owner_cancel_room_allocation: { Args: { p_wedding: string; p_allocation: string; p_expected_revision: number }; Returns: number };
       owner_configure_room_sheet: { Args: { p_wedding:string; p_spreadsheet_id:string }; Returns:string };

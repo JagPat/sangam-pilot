@@ -76,7 +76,7 @@ end $$;
 create or replace function app.owner_save_room_allocation_draft(
   p_wedding uuid, p_allocation uuid, p_room uuid, p_primary_household uuid,
   p_plan app.occupancy_plan, p_guest_ids uuid[], p_check_in date, p_check_out date,
-  p_single_reason text, p_expected_revision bigint
+  p_single_reason text, p_notes text, p_expected_revision bigint
 ) returns table(allocation_id uuid, sync_revision bigint)
 language plpgsql security definer set search_path=app,public as $$
 declare v_alloc uuid; v_revision bigint; v_capacity int; v_guest_count int; v_distinct_count int;
@@ -100,9 +100,9 @@ begin
   perform 1 from app.guest g where g.wedding_id=p_wedding and g.id=any(coalesce(p_guest_ids,'{}'::uuid[])) order by g.id for update;
 
   if p_allocation is null then
-    insert into app.room_allocation(wedding_id,room_id,household_id,primary_household_id,check_in,check_out,status,
+    insert into app.room_allocation(wedding_id,room_id,household_id,primary_household_id,check_in,check_out,status,notes,
       occupancy_plan,single_occupancy_exception_reason,sync_revision)
-    values(p_wedding,p_room,p_primary_household,p_primary_household,p_check_in,p_check_out,'held',p_plan,
+    values(p_wedding,p_room,p_primary_household,p_primary_household,p_check_in,p_check_out,'held',nullif(trim(p_notes),''),p_plan,
       nullif(trim(p_single_reason),''),1) returning id into v_alloc;
     v_revision:=1;
   else
@@ -114,7 +114,7 @@ begin
     delete from app.room_occupant o where o.wedding_id=p_wedding and o.allocation_id=v_alloc;
     v_revision:=v_revision+1;
     update app.room_allocation set room_id=p_room, household_id=p_primary_household,
-      primary_household_id=p_primary_household, check_in=p_check_in, check_out=p_check_out, status='held',
+      primary_household_id=p_primary_household, check_in=p_check_in, check_out=p_check_out, status='held',notes=nullif(trim(p_notes),''),
       occupancy_plan=p_plan, single_occupancy_exception_reason=nullif(trim(p_single_reason),''),
       sharing_confirmed_at=null,sharing_confirmed_by=null,sharing_confirmed_revision=null,sync_revision=v_revision
     where wedding_id=p_wedding and id=v_alloc;
@@ -190,11 +190,11 @@ grant execute on function app.can_admin_room_allocation(uuid,uuid) to authentica
 
 revoke execute on function app.owner_create_room_draft(uuid,uuid,text,text,int,app.occupancy_plan) from public,anon;
 revoke execute on function app.owner_update_room_identity(uuid,uuid,text,text,int,app.room_inventory_status,bigint) from public,anon;
-revoke execute on function app.owner_save_room_allocation_draft(uuid,uuid,uuid,uuid,app.occupancy_plan,uuid[],date,date,text,bigint) from public,anon;
+revoke execute on function app.owner_save_room_allocation_draft(uuid,uuid,uuid,uuid,app.occupancy_plan,uuid[],date,date,text,text,bigint) from public,anon;
 revoke execute on function app.owner_confirm_room_allocation(uuid,uuid,bigint) from public,anon;
 revoke execute on function app.owner_cancel_room_allocation(uuid,uuid,bigint) from public,anon;
 grant execute on function app.owner_create_room_draft(uuid,uuid,text,text,int,app.occupancy_plan) to authenticated;
 grant execute on function app.owner_update_room_identity(uuid,uuid,text,text,int,app.room_inventory_status,bigint) to authenticated;
-grant execute on function app.owner_save_room_allocation_draft(uuid,uuid,uuid,uuid,app.occupancy_plan,uuid[],date,date,text,bigint) to authenticated;
+grant execute on function app.owner_save_room_allocation_draft(uuid,uuid,uuid,uuid,app.occupancy_plan,uuid[],date,date,text,text,bigint) to authenticated;
 grant execute on function app.owner_confirm_room_allocation(uuid,uuid,bigint) to authenticated;
 grant execute on function app.owner_cancel_room_allocation(uuid,uuid,bigint) to authenticated;

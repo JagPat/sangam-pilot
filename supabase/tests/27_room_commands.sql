@@ -42,7 +42,7 @@ begin
   from app.owner_save_room_allocation_draft(
     '27bb0000-0000-0000-0000-000000000001',null,v_room,'27cc0000-0000-0000-0000-000000000001',
     'double',array['27dd0000-0000-0000-0000-000000000001'::uuid,'27dd0000-0000-0000-0000-000000000002'::uuid],
-    '2026-12-01','2026-12-04',null,null
+    '2026-12-01','2026-12-04',null,null,null
   );
   if v_rev <> 1 then raise exception 'FAIL(create): initial revision %',v_rev; end if;
   select app.owner_confirm_room_allocation('27bb0000-0000-0000-0000-000000000001',v_alloc,1) into v_rev;
@@ -57,7 +57,7 @@ begin
     perform * from app.owner_save_room_allocation_draft(
       '27bb0000-0000-0000-0000-000000000001',v_alloc,v_room,'27cc0000-0000-0000-0000-000000000001',
       'double',array['27dd0000-0000-0000-0000-000000000001'::uuid,'27dd0000-0000-0000-0000-000000000002'::uuid],
-      '2026-12-01','2026-12-04',null,1
+      '2026-12-01','2026-12-04',null,null,1
     );
     raise exception 'FAIL(stale): stale revision was accepted';
   exception when sqlstate 'SR409' then null; end;
@@ -66,7 +66,7 @@ begin
   from app.owner_save_room_allocation_draft(
     '27bb0000-0000-0000-0000-000000000001',null,v_single,'27cc0000-0000-0000-0000-000000000002',
     'single',array['27dd0000-0000-0000-0000-000000000003'::uuid],
-    '2026-12-01','2026-12-04',null,null
+    '2026-12-01','2026-12-04',null,null,null
   );
   begin
     perform app.owner_confirm_room_allocation('27bb0000-0000-0000-0000-000000000001',v_single_alloc,1);
@@ -77,7 +77,7 @@ begin
     perform * from app.owner_save_room_allocation_draft(
       '27bb0000-0000-0000-0000-000000000001',v_single_alloc,v_single,'27cc0000-0000-0000-0000-000000000002',
       'single',array['27dd0000-0000-0000-0000-000000000004'::uuid],
-      '2026-12-01','2026-12-04','Privacy requirement',1
+      '2026-12-01','2026-12-04','Privacy requirement',null,1
     );
     raise exception 'FAIL(scope): cross-wedding guest accepted';
   exception when sqlstate 'SR404' then null; end;

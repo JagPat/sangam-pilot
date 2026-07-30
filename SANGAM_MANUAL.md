@@ -235,6 +235,7 @@ Run on the live database and deployment on 2026-07-19:
 ## 10. Known limitations & roadmap
 
 - **Room planning model** — households organize invitations and shared contact details; they do not determine hotel-room membership. Room assignments are per guest, one household may use several rooms, and every sharing group must be explicitly selected and confirmed by an authorized organizer.
+- **Room Sheet workflow** — Sangam is authoritative. “Review Sheet changes” stages and validates proposed edits; only a wedding owner can commit accepted rows. Stale revisions are rejected and must be refreshed, never overwritten.
 - **Production SMTP** — keep a production sender configured for code delivery.
 - **Invite-by-link exchange** — implemented but still gated off in production until real-auth and browser acceptance are certified.
 - **WhatsApp bot** — a fast-follow that calls the same `propose`/`confirm` functions.
