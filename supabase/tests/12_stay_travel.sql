@@ -29,7 +29,7 @@ insert into app.guest(id,wedding_id,household_id,full_name,self_account_id) valu
   ('fb000000-0000-0000-0000-0000000000d2','fb000000-0000-0000-0000-000000000001','fb000000-0000-0000-0000-0000000000a2','Guest Two','fbcc0000-0000-0000-0000-0000000000b2');
 
 -- ===== owner: set up a room, allocate HH One + seat Guest One, and record HH Two's stay ask =====
-set local role authenticated;
+reset role;
 select set_config('request.jwt.claims', json_build_object('sub','fb110000-0000-0000-0000-0000000000a0')::text, true);
 do $$ declare v_hotel uuid; v_room uuid; v_a uuid; begin
   insert into app.hotel(wedding_id,name) values ('fb000000-0000-0000-0000-000000000001','Hotel') returning id into v_hotel;
@@ -45,6 +45,7 @@ do $$ declare v_hotel uuid; v_room uuid; v_a uuid; begin
 end $$;
 
 -- ===== Guest One: manage own, blocked from others, sees own room =====
+set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub','fb110000-0000-0000-0000-0000000000b1')::text, true);
 do $$ declare n int; begin
   insert into app.stay_request(wedding_id,household_id,status,nights) values

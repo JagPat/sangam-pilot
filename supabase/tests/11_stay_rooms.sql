@@ -31,7 +31,7 @@ insert into app.guest(id,wedding_id,household_id,full_name) values
   ('ff000000-0000-0000-0000-0000000000e1','ff000000-0000-0000-0000-000000000002','ff000000-0000-0000-0000-0000000000b1','Other G');
 
 -- ============================ as the OWNER ============================
-set local role authenticated;
+reset role;
 select set_config('request.jwt.claims', json_build_object('sub','ff110000-0000-0000-0000-0000000000a0')::text, true);
 
 do $$
@@ -121,6 +121,7 @@ begin
 end $$;
 
 -- ============================ a non-owner member sees nothing ============================
+set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub','ff110000-0000-0000-0000-0000000000c0')::text, true);
 do $$ declare n int; begin
   select count(*) into n from app.room;            if n<>0 then raise exception 'FAIL(member): non-owner sees % rooms', n; end if;

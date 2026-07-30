@@ -40,7 +40,7 @@ update app.guest
  where id = 'fc000000-0000-0000-0000-0000000000b9';
 
 -- ===== owner builds the stay data for BOTH sides and writes three activity entries =====
-set local role authenticated;
+reset role;
 select set_config('request.jwt.claims', json_build_object('sub','fc110000-0000-0000-0000-0000000000a0')::text, true);
 do $$ declare v_hotel uuid; v_rb uuid; v_rg uuid; v_ab uuid; v_ag uuid; v_svc uuid; begin
   insert into app.hotel(wedding_id,name) values ('fc000000-0000-0000-0000-000000000001','Hotel') returning id into v_hotel;
@@ -73,6 +73,7 @@ do $$ declare v_hotel uuid; v_rb uuid; v_rg uuid; v_ab uuid; v_ag uuid; v_svc uu
 end $$;
 
 -- ===== bride admin: own side visible, groom side hidden =====
+set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub','fc110000-0000-0000-0000-0000000000b1')::text, true);
 do $$ declare n int; begin
   select count(*) into n from app.room_allocation; if n<>1 then raise exception 'FAIL(alloc): bride admin sees % allocations (expected their 1)', n; end if;
