@@ -38,6 +38,10 @@ codex://threads/019f6ab1-d100-7060-a877-e81ea689d21d
 7. Provisional identifiers such as `SUR-001` and `OUT-001` are stable planning codes. A later physical room number is a separate field and must not change the allocation identity.
 8. Outside accommodation records the exact property. `Outside Suryagarh - TBD` is allowed temporarily.
 9. Guest and room UUIDs are the sync keys. Names and room labels are never identity keys.
+10. An active allocation means `held`, `confirmed`, or `checked_in`. `checked_out` and `cancelled` are inactive.
+11. Authenticated clients never mutate rooms, allocations, occupants, or sync staging directly. Every write uses a guarded transactional command.
+12. A sharing confirmation belongs to one exact room-plan revision. Changing the room, dates, occupancy plan, exception reason, or occupants clears it.
+13. The pilot Sheet is update-only. New rooms and allocations are created in Sangam; blank, unknown, or deleted identifiers are rejected.
 
 ## 3. Existing implementation and gaps
 
@@ -87,7 +91,7 @@ Retain the UUID primary key. Add:
 - `provisional_code text not null`, unique within a wedding;
 - `physical_room_number text null`;
 - `inventory_status`: `provisional`, `confirmed`, or `out_of_service` (or preserve `out_of_service` and add only `number_status`);
-- an optional optimistic concurrency field such as `row_version bigint not null default 1`.
+- `sync_revision bigint not null default 1`, incremented by guarded commands whenever Sheet-visible room identity changes.
 
 Migration behavior:
 
@@ -110,8 +114,8 @@ Treat an allocation as one room booking for a date range, not as ownership by on
 - Keep one active allocation per room for the pilot wedding. If later weddings require reused rooms across non-overlapping date ranges, replace this with an exclusion constraint that rejects only overlapping active ranges.
 - Add `occupancy_plan`: `single`, `double`, or `triple`.
 - Add `single_occupancy_exception_reason text null`.
-- Add `sharing_confirmed_at timestamptz null` and `sharing_confirmed_by uuid null`.
-- Add `row_version bigint not null default 1` for sync conflict detection.
+- Add `sharing_confirmed_at timestamptz null`, `sharing_confirmed_by uuid null`, and `sharing_confirmed_revision bigint null`.
+- Add `sync_revision bigint not null default 1` for sync conflict detection. This is the exported aggregate revision and must also advance when the room identity or occupant set changes.
 
 Confirmation rules belong in one atomic RPC:
 
@@ -125,13 +129,26 @@ Confirmation rules belong in one atomic RPC:
 
 Draft allocations may be incomplete. Only `confirmed` and later statuses must satisfy the exact occupancy-plan count.
 
+The commands that save or confirm an allocation must lock the allocation, room, and selected guests in a stable order. They compare an expected `sync_revision`, increment it on success, and reject stale state without mutation. Exact-count confirmation and its structured audit entry occur in the same transaction.
+
 ### 4.4 `app.room_occupant`
 
 Keep this as the canonical guest-to-room relationship. Add no name-based fallback. A guest UUID is required.
 
 Cross-household sharing is permitted, but the UI must visibly identify it and require explicit sharing confirmation. Sangam must not infer or auto-create these pairings.
 
-### 4.5 Views
+An explicit guest-level accommodation relationship under `stay_request` identifies who actually needs a room. Household `party_size` remains useful planning information but is not authoritative for the unallocated-guest queue.
+
+### 4.5 Family-side visibility
+
+Allocation visibility for a family administrator derives from active `room_occupant` rows, never from `primary_household_id`:
+
+- the wedding owner sees the complete room plan;
+- a family administrator sees operational room facts when at least one occupant belongs to their side;
+- a family administrator sees guest identities only for guests they may administer; and
+- cross-side roommate names are not automatically disclosed.
+
+### 4.6 Views
 
 Revise or add views to expose:
 
@@ -202,16 +219,22 @@ Protected columns:
 
 - `Allocation ID`;
 - `Room ID`;
-- `Row version`;
+- `Sync revision`;
+- `Guest 1 ID`;
+- `Guest 2 ID`;
+- `Guest 3 ID`;
 - `Last synced at`;
 - `Sync status`;
 - `Sync error`.
 
-Editable columns:
+Read-only room identity columns:
 
 - `Property`;
 - `Provisional room ID`;
 - `Physical room number`;
+
+Editable allocation columns:
+
 - `Occupancy plan`;
 - `Guest 1`;
 - `Guest 2`;
@@ -224,6 +247,8 @@ Editable columns:
 - `Notes`.
 
 Guest cells should display names but synchronize guest UUIDs through protected companion columns or validated lookup metadata. Duplicate names must be disambiguated using household and a short stable identifier.
+
+The pilot import updates existing allocations only. It does not create, delete, move, or rename room inventory. Room identity changes are made in Sangam and exported back to the Sheet. Spreadsheet protection is a usability aid, not a trust boundary; server validation treats every cell as untrusted.
 
 ### 6.2 `Room Summary`
 
@@ -274,7 +299,7 @@ An owner-triggered `Review Sheet changes` action is the MVP. Optional scheduled 
 
 ### 7.4 Conflict policy
 
-If Sheet `row_version` differs from Sangam:
+If Sheet `sync_revision` differs from Sangam:
 
 - reject that row;
 - preserve Sangam;
@@ -320,6 +345,9 @@ Keep a compatibility wrapper only while existing UI paths are migrated. All mult
 - Blank rows do not mean delete. Deletion/cancellation requires an explicit action value.
 - A sync commit must be idempotent using the sync run/change IDs.
 - Every accepted and rejected sync change is auditable without storing Google credentials or raw access tokens.
+- Staging stores stable IDs, normalized planning values, validation codes, and safe summaries. It does not retain contact data or complete raw workbook rows.
+- Owner refresh, review, and commit serialize per wedding so exports cannot race a committing import.
+- The workbook uses `Asia/Kolkata`; check-in and check-out are parsed and written as ISO local dates rather than timezone-dependent instants.
 
 ## 10. Test requirements
 
