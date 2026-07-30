@@ -3,6 +3,8 @@ const health=await fetch(`${base}/api/health`,{headers:{'cache-control':'no-cach
 if(!health.ok) throw new Error(`health endpoint returned ${health.status}`);
 const body=await health.json();
 if(body.status!=='ok'||body.service!=='sangam'||body.configured!==true) throw new Error(`unhealthy deployment: ${JSON.stringify(body)}`);
+const expected=process.env.EXPECTED_RELEASE?.trim();
+if(expected&&body.release!==expected) throw new Error(`deployment release mismatch: expected ${expected}, received ${body.release}`);
 
 for(const path of ['/','/login']){
   const response=await fetch(`${base}${path}`,{redirect:'follow'});
