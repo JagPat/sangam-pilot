@@ -1,5 +1,5 @@
 import { ROOM_TYPES, type StayWedding, type StayRoom, type StayArrival } from '@/lib/data/stay';
-import { addHotel, addRooms, allocateHousehold, setAllocationStatus, addOccupant, removeOccupant, setPickupStatus, setStayRequestStatus } from './actions';
+import { addHotel, addRooms, allocateHousehold, setAllocationStatus, setPickupStatus, setStayRequestStatus } from './actions';
 
 // Presentational console for Stay & Travel (used by /host/stay and the fixture preview). Server-action
 // forms are wired here; the route page supplies the data.
@@ -44,10 +44,7 @@ function OccupancyTiles({ w }: { w: StayWedding }) {
 
 function RoomCard({ w, room }: { w: StayWedding; room: StayRoom }) {
   const a = room.allocation;
-  const seated = new Set((a?.occupants ?? []).map((o) => o.guestId));
-  const household = a ? w.households.find((h) => h.id === a.householdId) : null;
-  const unseated = household ? household.guests.filter((g) => !seated.has(g.guestId)) : [];
-  const unallocated = w.households.filter((h) => !h.allocated);
+  const allGuests = w.households.flatMap((h) => h.guests.map((g) => ({ ...g, householdId: h.id, householdName: h.name })));
 
   return (
     <div className="sg-section" style={{ marginBottom: 14 }}>
@@ -65,29 +62,10 @@ function RoomCard({ w, room }: { w: StayWedding; room: StayRoom }) {
           <div><strong>{a.householdName ?? '—'}</strong>{a.checkIn ? <span className="sg-muted"> · {a.checkIn}{a.checkOut ? ` → ${a.checkOut}` : ''}</span> : null}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
             {a.occupants.length === 0 ? <span className="sg-muted">No roommates seated.</span> : a.occupants.map((o) => (
-              <span key={o.guestId} className="sg-chip">
-                {o.guestName ?? '—'}
-                <form action={removeOccupant} style={{ display: 'inline' }}>
-                  <input type="hidden" name="weddingId" value={w.weddingId} />
-                  <input type="hidden" name="allocationId" value={a.allocationId} />
-                  <input type="hidden" name="guestId" value={o.guestId} />
-                  <button type="submit" title="Remove" style={{ border: 0, background: 'transparent', color: 'var(--clay)', cursor: 'pointer', fontWeight: 700, marginLeft: 4 }}>×</button>
-                </form>
-              </span>
+              <span key={o.guestId} className="sg-chip">{o.guestName ?? '—'}</span>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, alignItems: 'center' }}>
-            {unseated.length && a.occupants.length < room.capacity ? (
-              <form action={addOccupant} style={{ display: 'flex', gap: 6 }}>
-                <input type="hidden" name="weddingId" value={w.weddingId} />
-                <input type="hidden" name="allocationId" value={a.allocationId} />
-                <select className="sg-select" name="guestId" defaultValue="" style={{ maxWidth: 200 }}>
-                  <option value="" disabled>Add roommate…</option>
-                  {unseated.map((g) => <option key={g.guestId} value={g.guestId}>{g.guestName ?? '—'}</option>)}
-                </select>
-                <button type="submit" className="sg-btn sg-btn--ghost sg-btn--sm">Add</button>
-              </form>
-            ) : null}
             {a.status === 'held' ? (
               <form action={setAllocationStatus}>
                 <input type="hidden" name="weddingId" value={w.weddingId} /><input type="hidden" name="allocationId" value={a.allocationId} /><input type="hidden" name="status" value="confirmed" />
@@ -104,13 +82,9 @@ function RoomCard({ w, room }: { w: StayWedding; room: StayRoom }) {
         <form action={allocateHousehold} className="sg-formrow" style={{ marginTop: 12 }}>
           <input type="hidden" name="weddingId" value={w.weddingId} />
           <input type="hidden" name="roomId" value={room.roomId} />
-          <div className="sg-field">
-            <label>Allocate household</label>
-            <select className="sg-select" name="householdId" defaultValue="" required>
-              <option value="" disabled>Choose a household…</option>
-              {unallocated.map((h) => <option key={h.id} value={h.id}>{h.name} ({h.guests.length})</option>)}
-            </select>
-          </div>
+          <div className="sg-field"><label>Occupancy</label><select className="sg-select" name="occupancyPlan" defaultValue="double"><option value="single">Single</option><option value="double">Double</option><option value="triple">Triple</option></select></div>
+          {[0,1,2].map((index) => <div className="sg-field" key={index}><label>Guest {index + 1}{index === 0 ? ' *' : ''}</label><select className="sg-select" name="guestId" defaultValue="" required={index === 0}><option value="">Choose guest…</option>{allGuests.map((g) => <option key={g.guestId} value={g.guestId}>{g.guestName ?? '—'} · {g.householdName}</option>)}</select></div>)}
+          <div className="sg-field"><label>Single-room reason</label><input className="sg-input" name="singleReason" /></div>
           <div className="sg-field"><label>Check‑in</label><input className="sg-input" type="date" name="checkIn" /></div>
           <div className="sg-field"><label>Check‑out</label><input className="sg-input" type="date" name="checkOut" /></div>
           <button type="submit" className="sg-btn sg-btn--primary">Allocate</button>

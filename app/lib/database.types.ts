@@ -47,9 +47,9 @@ type CostControlAttentionRow = { wedding_id: string; cost_item_id: string; atten
 type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
 type EngagementRow = { id: string; wedding_id: string; vendor_id: string; event_instance_id: string | null; state: string; role_title: string | null; blurb: string | null; quote_amount: number | null; quote_currency: string | null; notes: string | null; created_at: string; updated_at: string };
 type GuestDietaryProfileRow = { id: string; wedding_id: string; guest_id: string; category: string; jain_strictness: string | null; no_onion_garlic: boolean; fasting_days: string[]; allergies: string | null; created_at: string };
-type HotelRow = { id: string; wedding_id: string; name: string; address: string | null; map_url: string | null; notes: string | null; created_at: string };
-type RoomRow = { id: string; wedding_id: string; hotel_id: string; label: string; room_type: string; capacity: number; floor: string | null; wing: string | null; nightly_rate: number | null; currency: string | null; out_of_service: boolean; notes: string | null };
-type RoomAllocationRow = { id: string; wedding_id: string; room_id: string; household_id: string; check_in: string | null; check_out: string | null; status: string; notes: string | null; created_at: string };
+type HotelRow = { id: string; wedding_id: string; name: string; address: string | null; map_url: string | null; notes: string | null; property_kind: string; property_status: string; created_at: string };
+type RoomRow = { id: string; wedding_id: string; hotel_id: string; label: string; provisional_code: string; physical_room_number: string | null; room_type: string; capacity: number; floor: string | null; wing: string | null; nightly_rate: number | null; currency: string | null; out_of_service: boolean; inventory_status: string; sync_revision: number; notes: string | null };
+type RoomAllocationRow = { id: string; wedding_id: string; room_id: string; household_id: string | null; primary_household_id: string | null; occupancy_plan: string; single_occupancy_exception_reason: string | null; sharing_confirmed_at: string | null; sharing_confirmed_by: string | null; sharing_confirmed_revision: number | null; sync_revision: number; check_in: string | null; check_out: string | null; status: string; notes: string | null; created_at: string };
 type RoomOccupantRow = { id: string; wedding_id: string; allocation_id: string; guest_id: string };
 type StayRequestRow = { id: string; wedding_id: string; household_id: string; status: string; party_size: number | null; nights: number | null; arrive_on: string | null; depart_on: string | null; preferred_type: string | null; accessibility: string | null; notes: string | null; created_at: string; updated_at: string };
 type TravelDetailRow = { id: string; wedding_id: string; guest_id: string; direction: string; mode: string | null; at_instant: string | null; wall_local: string | null; iana_timezone: string | null; offset_minutes: number | null; carrier: string | null; number: string | null; from_place: string | null; to_place: string | null; arranged_by: string; needs_pickup: boolean; pickup_status: string; luggage_note: string | null; updated_at: string };
@@ -59,6 +59,10 @@ type ServiceRequestRow = { id: string; wedding_id: string; service_id: string; h
 type StayActivityRow = { id: string; wedding_id: string; actor_account_id: string | null; action: string; summary: string; household_id: string | null; guest_id: string | null; created_at: string };
 type RoomOccupancyRow = { wedding_id: string; hotel_id: string; room_id: string; label: string; room_type: string; capacity: number; out_of_service: boolean; allocation_id: string | null; household_id: string | null; status: string | null; occupants: number; is_occupied: boolean };
 type StaySummaryRow = { wedding_id: string; room_type: string; total_rooms: number; occupied_rooms: number; free_rooms: number; out_of_service: number };
+type RoomPlanRow = { wedding_id: string; allocation_id: string; room_id: string; primary_household_id: string | null; hotel_id: string; property_name: string; property_kind: string; property_status: string; provisional_code: string; physical_room_number: string | null; capacity: number; inventory_status: string; occupancy_plan: string; single_occupancy_exception_reason: string | null; status: string; check_in: string | null; check_out: string | null; sharing_confirmed_at: string | null; sharing_confirmed_by: string | null; sharing_confirmed_revision: number | null; sync_revision: number; occupant_count: number; guest_ids: string[]; guest_names: string[]; cross_household: boolean };
+type RoomPlanSummaryRow = { wedding_id: string; hotel_id: string; property_name: string; occupancy_plan: string; confirmed_rooms: number; draft_rooms: number; missing_physical_numbers: number; unconfirmed_rooms: number };
+type RoomPlanExceptionRow = { wedding_id: string; allocation_id: string; room_id: string; exception_code: string; detail: string };
+type UnallocatedStayGuestRow = { wedding_id: string; stay_request_id: string; guest_id: string; household_id: string; full_name: string | null };
 
 // Owner-only aggregate views (security_invoker + is_wedding_owner filter): rows come back ONLY for weddings
 // the signed-in account owns; empty for everyone else. Counts are bigint → coerce with Number() at use.
@@ -138,6 +142,10 @@ export type Database = {
       directory_entry: { Row: DirectoryEntryRow; Relationships: [] };
       room_occupancy: { Row: RoomOccupancyRow; Relationships: [] };
       stay_summary: { Row: StaySummaryRow; Relationships: [] };
+      room_plan: { Row: RoomPlanRow; Relationships: [] };
+      room_plan_summary: { Row: RoomPlanSummaryRow; Relationships: [] };
+      room_plan_exception: { Row: RoomPlanExceptionRow; Relationships: [] };
+      unallocated_stay_guest: { Row: UnallocatedStayGuestRow; Relationships: [] };
       attendance_expanded: { Row: AttendanceExpandedRow; Relationships: [] };
       cost_control_summary: { Row: CostControlSummaryRow; Relationships: [] };
       cost_control_attention: { Row: CostControlAttentionRow; Relationships: [] };
@@ -231,7 +239,11 @@ export type Database = {
       };
       organizer_add_guest: { Args: { p_wedding: string; p_household: string | null; p_new_household: string | null; p_host_group: string | null; p_name: string; p_email: string | null }; Returns: string };
       organizer_invite_guest: { Args: { p_wedding: string; p_guest: string; p_household: string; p_instance: string }; Returns: string };
-      owner_allocate_household: { Args: { p_wedding: string; p_room: string; p_household: string; p_check_in: string | null; p_check_out: string | null }; Returns: string };
+      owner_create_room_draft: { Args: { p_wedding: string; p_hotel: string; p_provisional: string; p_physical: string | null; p_capacity: number; p_plan: string }; Returns: string };
+      owner_update_room_identity: { Args: { p_wedding: string; p_room: string; p_provisional: string; p_physical: string | null; p_capacity: number; p_inventory: string; p_expected_revision: number }; Returns: number };
+      owner_save_room_allocation_draft: { Args: { p_wedding: string; p_allocation: string | null; p_room: string; p_primary_household: string | null; p_plan: string; p_guest_ids: string[]; p_check_in: string | null; p_check_out: string | null; p_single_reason: string | null; p_expected_revision: number | null }; Returns: { allocation_id: string; sync_revision: number }[] };
+      owner_confirm_room_allocation: { Args: { p_wedding: string; p_allocation: string; p_expected_revision: number }; Returns: number };
+      owner_cancel_room_allocation: { Args: { p_wedding: string; p_allocation: string; p_expected_revision: number }; Returns: number };
       // Family-admin: create an event hosted by the caller's own side (0021).
       group_create_event: {
         Args: {

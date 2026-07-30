@@ -15,7 +15,7 @@ export const ROOM_TYPES = [
 
 export type StayOccupant = { guestId: string; guestName: string | null };
 export type StayAllocation = {
-  allocationId: string; householdId: string; householdName: string | null;
+  allocationId: string; householdId: string | null; householdName: string | null;
   status: string; checkIn: string | null; checkOut: string | null; occupants: StayOccupant[];
 };
 export type StayRoom = {
@@ -78,7 +78,7 @@ export async function getStayData(db: AppSupabaseClient): Promise<StayWedding[]>
     const allocByRoom = new Map<string, StayAllocation>();
     for (const a of wAllocs) {
       allocByRoom.set(a.room_id, {
-        allocationId: a.id, householdId: a.household_id, householdName: hhName.get(a.household_id) ?? null,
+        allocationId: a.id, householdId: a.household_id, householdName: a.household_id ? hhName.get(a.household_id) ?? null : null,
         status: a.status, checkIn: a.check_in ?? null, checkOut: a.check_out ?? null,
         occupants: (occByAlloc.get(a.id) ?? []).sort((x, y) => (x.guestName ?? '').localeCompare(y.guestName ?? '')),
       });
