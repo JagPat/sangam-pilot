@@ -124,3 +124,4 @@ release gate. On 2026-07-29 they passed from scratch against an isolated local P
 - SQL suites `27_room_commands.sql` and `28_room_sheet_sync.sql` prove command-only writes, exact confirmation, stale rejection, owner-only staging/commit, direct-write denial, and idempotent replay.
 - The app tests cover UUID companion columns, update-only imports, ISO dates, duplicate guests, deterministic diffs, and preservation of the existing guest/guidance tabs.
 - `npm run verify:room-sheet` is read-only and runs only with `ROOM_SHEET_LIVE_SMOKE=1`; it checks the exact workbook, required tabs, protected headers, the Kolkata timezone (`Asia/Kolkata` or Google's canonical alias `Asia/Calcutta`), and a guest-sheet sentinel without printing credentials or guest data.
+- The live smoke pins `/api/health.release` to the triggering `main` SHA, so a healthy stale Coolify container cannot satisfy the release gate.
