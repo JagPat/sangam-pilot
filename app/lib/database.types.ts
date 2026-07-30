@@ -57,6 +57,9 @@ type MyStayRow = { allocation_id: string; wedding_id: string; room_label: string
 type ServiceRow = { id: string; wedding_id: string; name: string; description: string | null; category: string | null; billing: string; price_cents: number; currency: string; unit_label: string | null; included_qty: number | null; scope: string; settle_hint: string; capacity: number | null; active: boolean; sort_order: number; created_at: string; updated_at: string };
 type ServiceRequestRow = { id: string; wedding_id: string; service_id: string; household_id: string; guest_id: string | null; qty: number; status: string; settle: string; notes: string | null; created_at: string; updated_at: string };
 type StayActivityRow = { id: string; wedding_id: string; actor_account_id: string | null; action: string; summary: string; household_id: string | null; guest_id: string | null; created_at: string };
+type SheetSyncConnectionRow = { id:string; wedding_id:string; spreadsheet_id:string; enabled:boolean; created_by:string; created_at:string; updated_at:string };
+type SheetSyncRunRow = { id:string; wedding_id:string; direction:string; status:string; actor_account_id:string; result:Json|null; created_at:string; completed_at:string|null };
+type SheetSyncChangeRow = { id:string; wedding_id:string; run_id:string; change_key:string; allocation_id:string; room_id:string; base_revision:number; proposed:Json; validation_status:string; validation_codes:string[]; committed_revision:number|null; created_at:string };
 type RoomOccupancyRow = { wedding_id: string; hotel_id: string; room_id: string; label: string; room_type: string; capacity: number; out_of_service: boolean; allocation_id: string | null; household_id: string | null; status: string | null; occupants: number; is_occupied: boolean };
 type StaySummaryRow = { wedding_id: string; room_type: string; total_rooms: number; occupied_rooms: number; free_rooms: number; out_of_service: number };
 type RoomPlanRow = { wedding_id: string; allocation_id: string; room_id: string; primary_household_id: string | null; hotel_id: string; property_name: string; property_kind: string; property_status: string; provisional_code: string; physical_room_number: string | null; capacity: number; inventory_status: string; occupancy_plan: string; single_occupancy_exception_reason: string | null; status: string; check_in: string | null; check_out: string | null; sharing_confirmed_at: string | null; sharing_confirmed_by: string | null; sharing_confirmed_revision: number | null; sync_revision: number; occupant_count: number; guest_ids: string[]; guest_names: string[]; cross_household: boolean };
@@ -135,6 +138,9 @@ export type Database = {
       service: { Row: ServiceRow; Insert: Partial<ServiceRow>; Update: Partial<ServiceRow>; Relationships: [] };
       service_request: { Row: ServiceRequestRow; Insert: Partial<ServiceRequestRow>; Update: Partial<ServiceRequestRow>; Relationships: [] };
       stay_activity: { Row: StayActivityRow; Insert: Partial<StayActivityRow>; Update: Partial<StayActivityRow>; Relationships: [] };
+      sheet_sync_connection: { Row: SheetSyncConnectionRow; Insert: Partial<SheetSyncConnectionRow>; Update: Partial<SheetSyncConnectionRow>; Relationships: [] };
+      sheet_sync_run: { Row: SheetSyncRunRow; Insert: Partial<SheetSyncRunRow>; Update: Partial<SheetSyncRunRow>; Relationships: [] };
+      sheet_sync_change: { Row: SheetSyncChangeRow; Insert: Partial<SheetSyncChangeRow>; Update: Partial<SheetSyncChangeRow>; Relationships: [] };
     };
     Views: {
       instance_rsvp_counts: { Row: InstanceRsvpCountsRow; Relationships: [] };
@@ -244,6 +250,11 @@ export type Database = {
       owner_save_room_allocation_draft: { Args: { p_wedding: string; p_allocation: string | null; p_room: string; p_primary_household: string | null; p_plan: string; p_guest_ids: string[]; p_check_in: string | null; p_check_out: string | null; p_single_reason: string | null; p_expected_revision: number | null }; Returns: { allocation_id: string; sync_revision: number }[] };
       owner_confirm_room_allocation: { Args: { p_wedding: string; p_allocation: string; p_expected_revision: number }; Returns: number };
       owner_cancel_room_allocation: { Args: { p_wedding: string; p_allocation: string; p_expected_revision: number }; Returns: number };
+      owner_configure_room_sheet: { Args: { p_wedding:string; p_spreadsheet_id:string }; Returns:string };
+      owner_begin_room_sheet_review: { Args: { p_wedding:string }; Returns:string };
+      owner_stage_room_sheet_change: { Args: { p_wedding:string; p_run:string; p_change_key:string; p_allocation:string; p_room:string; p_base_revision:number; p_proposed:Json }; Returns:string };
+      owner_preview_room_sheet_changes: { Args: { p_wedding:string; p_run:string }; Returns:void };
+      owner_commit_room_sheet_changes: { Args: { p_wedding:string; p_run:string; p_change_ids:string[] }; Returns:Json };
       // Family-admin: create an event hosted by the caller's own side (0021).
       group_create_event: {
         Args: {

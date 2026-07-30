@@ -111,7 +111,7 @@ begin
     if not found then raise exception 'unknown allocation' using errcode='SR404'; end if;
     if v_revision<>p_expected_revision then raise exception 'stale allocation revision' using errcode='SR409'; end if;
     v_alloc:=p_allocation;
-    delete from app.room_occupant where wedding_id=p_wedding and allocation_id=v_alloc;
+    delete from app.room_occupant o where o.wedding_id=p_wedding and o.allocation_id=v_alloc;
     v_revision:=v_revision+1;
     update app.room_allocation set room_id=p_room, household_id=p_primary_household,
       primary_household_id=p_primary_household, check_in=p_check_in, check_out=p_check_out, status='held',
