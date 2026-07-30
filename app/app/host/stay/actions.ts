@@ -66,15 +66,14 @@ export async function addRooms(fd: FormData): Promise<void> {
   let ok = true;
   try {
     const app = (await serverClientRW()).schema('app');
-    const rows = Array.from({ length: n }, (_, i) => ({
-      wedding_id: weddingId,
-      hotel_id: hotelId,
-      room_type: roomType,
-      capacity: cap,
-      label: Number.isFinite(startNum) ? String(startNum + i) : startLabel ? `${startLabel}-${i + 1}` : `${i + 1}`,
-    }));
-    const { error } = await app.from('room').insert(rows);
-    if (error) throw error;
+    for (let i = 0; i < n; i += 1) {
+      const code = Number.isFinite(startNum) ? String(startNum + i) : startLabel ? `${startLabel}-${i + 1}` : `${i + 1}`;
+      const { error } = await app.rpc('owner_create_room_draft', {
+        p_wedding: weddingId, p_hotel: hotelId, p_provisional: code, p_physical: null,
+        p_capacity: cap, p_plan: roomType,
+      });
+      if (error) throw error;
+    }
   } catch (e) {
     console.error('[sangam stay] addRooms', e);
     ok = false;
@@ -87,17 +86,21 @@ export async function addRooms(fd: FormData): Promise<void> {
 export async function allocateHousehold(fd: FormData): Promise<void> {
   const weddingId = s(fd, 'weddingId');
   const roomId = s(fd, 'roomId');
-  const householdId = s(fd, 'householdId');
+  const householdId = s(fd, 'householdId') || null;
+  const guestIds = fd.getAll('guestId').map(String).filter(Boolean);
+  const occupancyPlan = s(fd, 'occupancyPlan') || 'double';
+  const singleReason = s(fd, 'singleReason') || null;
   const checkIn = s(fd, 'checkIn') || null;
   const checkOut = s(fd, 'checkOut') || null;
-  if (!weddingId || !roomId || !householdId) fail('alloc');
+  if (!weddingId || !roomId || guestIds.length === 0) fail('alloc');
   let ok = true;
   let code = 'alloc';
   try {
     const app = (await serverClientRW()).schema('app');
-    const { error } = await app.rpc('owner_allocate_household', {
-      p_wedding: weddingId, p_room: roomId, p_household: householdId,
-      p_check_in: checkIn, p_check_out: checkOut,
+    const { error } = await app.rpc('owner_save_room_allocation_draft', {
+      p_wedding: weddingId, p_allocation: null, p_room: roomId, p_primary_household: householdId,
+      p_plan: occupancyPlan, p_guest_ids: guestIds, p_check_in: checkIn, p_check_out: checkOut,
+      p_single_reason: singleReason, p_notes: null, p_expected_revision: null,
     });
     if (error) { if (errCode(error) === '23505') code = 'occupied'; throw error; }
   } catch (e) {
@@ -105,7 +108,6 @@ export async function allocateHousehold(fd: FormData): Promise<void> {
     ok = false;
   }
   if (!ok) fail(code);
-  await logStay('room_allocated', 'Allocated a room to a household', weddingId, householdId);
   done();
 }
 
@@ -117,18 +119,18 @@ export async function setAllocationStatus(fd: FormData): Promise<void> {
   let ok = true;
   try {
     const app = (await serverClientRW()).schema('app');
-    const { error } = await app.from('room_allocation').update({ status }).eq('wedding_id', weddingId).eq('id', allocationId);
+    const current = await app.from('room_allocation').select('sync_revision').eq('wedding_id', weddingId).eq('id', allocationId).single();
+    if (current.error) throw current.error;
+    const result = status === 'cancelled'
+      ? await app.rpc('owner_cancel_room_allocation', { p_wedding: weddingId, p_allocation: allocationId, p_expected_revision: current.data.sync_revision })
+      : await app.rpc('owner_confirm_room_allocation', { p_wedding: weddingId, p_allocation: allocationId, p_expected_revision: current.data.sync_revision });
+    const { error } = result;
     if (error) throw error;
   } catch (e) {
     console.error('[sangam stay] setAllocationStatus', e);
     ok = false;
   }
   if (!ok) fail('save');
-  try {
-    const app = (await serverClientRW()).schema('app');
-    const { data } = await app.from('room_allocation').select('household_id').eq('wedding_id', weddingId).eq('id', allocationId).maybeSingle();
-    await logStay(status === 'cancelled' ? 'room_released' : 'room_status', `Room ${status === 'cancelled' ? 'released' : status}`, weddingId, data?.household_id ?? null);
-  } catch { /* best-effort */ }
   done();
 }
 

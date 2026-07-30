@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "verify:session": "node scripts/verify-session-persistence.mjs",
     "verify:supabase-local": "node scripts/verify-supabase-local.mjs",
-    "verify:live": "node ../scripts/verify-live.mjs"
+    "verify:live": "node ../scripts/verify-live.mjs",
+    "verify:room-sheet": "node scripts/verify-room-sheet-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.0",

@@ -91,6 +91,7 @@ DATABASE_URL="postgres://postgres:...@host:5432/postgres" bash scripts/run-sql-s
 3. **Environment variables** (from `app/.env.production.example`):
    - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
    - `INVITE_EXCHANGE_ENABLED=0`
+   - `ROOM_SHEET_SPREADSHEET_ID` and secret `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON` only when controlled room sync is enabled
 4. **Port**: `3000`. **Domain**: `sangam.yourdomain.com` → Coolify issues Let's Encrypt TLS automatically.
 5. Deploy. Coolify builds the standalone server and runs `node server.js`.
 
@@ -131,6 +132,10 @@ migration (never edit an applied one).
 The database push cannot run in GitHub until repository secrets for the managed Supabase project exist.
 Until those are configured, the release operator runs `supabase link --project-ref <actual-20-character-ref>`
 and `supabase db push` after CI succeeds. Never paste the literal placeholder `YOUR_SUPABASE_PROJECT_REF`.
+
+### Room Sheet recovery
+
+Sangam is authoritative. If a Sheet import is rejected, refresh the workbook from Sangam and reapply the intended edit. To disable synchronization immediately, remove `GOOGLE_SHEETS_SERVICE_ACCOUNT_JSON` from Coolify or set the connection `enabled=false`; this does not alter room data. Rotate a compromised Google key in Google Cloud and Coolify, then re-share only the selected workbook. Never repair a stale conflict by changing `Sync revision` in the Sheet.
 
 ## 8. The strong (real-auth) gate — mandatory before invite exchange
 On any Docker-enabled machine:
