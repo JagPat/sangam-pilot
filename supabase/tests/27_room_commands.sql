@@ -30,7 +30,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub','27000000-0000-0000-0000-000000000001')::text, true);
 
 do $$
-declare v_hotel uuid; v_room uuid; v_single uuid; v_alloc uuid; v_single_alloc uuid; v_rev bigint; v_audit int;
+declare v_hotel uuid; v_room uuid; v_single uuid; v_alloc uuid; v_single_alloc uuid; v_request uuid; v_rev bigint; v_audit int;
 begin
   insert into app.hotel(wedding_id,name,property_kind,property_status)
   values ('27bb0000-0000-0000-0000-000000000001','Suryagarh','suryagarh','confirmed') returning id into v_hotel;
@@ -86,6 +86,27 @@ begin
     update app.room set capacity=1 where id=v_room;
     raise exception 'FAIL(privilege): owner bypassed room command with direct DML';
   exception when insufficient_privilege then null; end;
+
+  insert into app.stay_request(wedding_id,household_id,status,party_size)
+  values('27bb0000-0000-0000-0000-000000000001','27cc0000-0000-0000-0000-000000000002','needs_room',1)
+  returning id into v_request;
+  insert into app.stay_request_guest(wedding_id,stay_request_id,guest_id)
+  values('27bb0000-0000-0000-0000-000000000001',v_request,'27dd0000-0000-0000-0000-000000000003');
+end $$;
+
+do $$ declare n int; begin
+  select confirmed_rooms into n from app.room_plan_summary
+   where wedding_id='27bb0000-0000-0000-0000-000000000001' and occupancy_plan='double';
+  if n<>1 then raise exception 'FAIL(summary): expected one confirmed double, got %',n; end if;
+  select draft_rooms into n from app.room_plan_summary
+   where wedding_id='27bb0000-0000-0000-0000-000000000001' and occupancy_plan='single';
+  if n<>1 then raise exception 'FAIL(summary): expected one draft single, got %',n; end if;
+  select count(*) into n from app.unallocated_stay_guest
+   where wedding_id='27bb0000-0000-0000-0000-000000000001' and guest_id='27dd0000-0000-0000-0000-000000000003';
+  if n<>1 then raise exception 'FAIL(unallocated): explicitly required guest in a draft room must remain unallocated'; end if;
+  select count(*) into n from app.room_plan_exception
+   where wedding_id='27bb0000-0000-0000-0000-000000000001' and exception_code='single_reason_missing';
+  if n<>1 then raise exception 'FAIL(exception): missing single reason not surfaced'; end if;
 end $$;
 
 select set_config('request.jwt.claims', json_build_object('sub','27000000-0000-0000-0000-000000000002')::text, true);
