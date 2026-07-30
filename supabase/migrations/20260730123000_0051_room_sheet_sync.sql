@@ -17,7 +17,7 @@ create table app.sheet_sync_run(
 create unique index sheet_one_committing_run on app.sheet_sync_run(wedding_id) where status='committing';
 create table app.sheet_sync_change(
  id uuid primary key default gen_random_uuid(), wedding_id uuid not null references app.wedding(id) on delete cascade,
- run_id uuid not null, change_key text not null, allocation_id uuid not null, room_id uuid not null, base_revision bigint not null,
+ run_id uuid not null, change_key text not null, allocation_id uuid, room_id uuid, base_revision bigint not null,
  proposed jsonb not null, validation_status app.sheet_change_status not null default 'pending', validation_codes text[] not null default '{}',
  committed_revision bigint, created_at timestamptz not null default now(),
  unique(run_id,change_key), unique(run_id,allocation_id),
@@ -68,6 +68,8 @@ language plpgsql security definer set search_path=app,public as $$ begin
   validation_codes=case when a.sync_revision<>c.base_revision then array['stale_revision']::text[]
                         when a.room_id<>c.room_id then array['room_mismatch']::text[] else '{}'::text[] end
  from app.room_allocation a where c.wedding_id=p_wedding and c.run_id=p_run and a.wedding_id=c.wedding_id and a.id=c.allocation_id;
+ update app.sheet_sync_change set validation_status='rejected',validation_codes=array['unknown_or_deleted_id']
+  where wedding_id=p_wedding and run_id=p_run and validation_status='pending';
  update app.sheet_sync_run set status='validated' where wedding_id=p_wedding and id=p_run;
 end $$;
 

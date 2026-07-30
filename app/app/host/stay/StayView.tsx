@@ -196,7 +196,8 @@ export function StayWeddingView({ w }: { w: StayWedding }) {
     <>
       <div className="sg-pagehead">
         <h1>Stay &amp; Travel · {w.title}</h1>
-        <p>Set up the hotel’s room block, then allocate households to rooms and seat their roommates. Occupancy updates live; releasing a room frees it for the next household.</p>
+        <p>Plan rooms guest by guest, confirm every sharing group explicitly, and keep provisional codes separate from physical room numbers.</p>
+        <a className="sg-btn sg-btn--ghost sg-btn--sm" href={`/host/stay/sheet?wedding=${encodeURIComponent(w.weddingId)}`}>Room Sheet synchronization</a>
       </div>
 
       <section className="sg-section">
