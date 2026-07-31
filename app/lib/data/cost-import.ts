@@ -4,6 +4,8 @@ import type { AppSupabaseClient } from '../supabase/clients';
 export const COST_IMPORT_COLUMNS=[
   'source_line_id','title','subtotal','currency','tax_rate','cost_centre','match_item','scope_included','scope_excluded',
 ] as const;
+export const MAX_COST_IMPORT_BYTES=1_000_000;
+export const MAX_COST_IMPORT_ROWS=500;
 
 export type ParsedCostImportRow={
   sourceLineId:string;
@@ -63,12 +65,18 @@ function parseCsvRecords(text:string):{records:string[][];error:string|null}{
 }
 
 export function parseCostImportCsv(text:string):CostImportParseResult{
+  if(new TextEncoder().encode(text).byteLength>MAX_COST_IMPORT_BYTES){
+    return {rows:[],errors:['CSV must be 1 MB or smaller.']};
+  }
   const parsed=parseCsvRecords(text.trim());
   if(parsed.error) return {rows:[],errors:[parsed.error]};
   const [header,...records]=parsed.records;
   const expected=COST_IMPORT_COLUMNS.join(',');
   if(!header||header.map((value)=>value.trim().toLowerCase()).join(',')!==expected){
     return {rows:[],errors:[`CSV header must be: ${expected}`]};
+  }
+  if(records.length>MAX_COST_IMPORT_ROWS){
+    return {rows:[],errors:[`CSV may contain at most ${MAX_COST_IMPORT_ROWS} data rows.`]};
   }
 
   const rows:ParsedCostImportRow[]=[];

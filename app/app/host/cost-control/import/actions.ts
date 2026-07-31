@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { parseCostImportCsv,prepareCostImportRows } from '@/lib/data/cost-import';
+import { MAX_COST_IMPORT_BYTES,parseCostImportCsv,prepareCostImportRows } from '@/lib/data/cost-import';
 import { serverClientRW } from '@/lib/supabase/serverClient';
 
 const text=(fd:FormData,key:string)=>String(fd.get(key)??'').trim();
@@ -17,6 +17,7 @@ export async function stageCostImport(fd:FormData){
   const weddingId=text(fd,'weddingId');
   const file=fd.get('file');
   const pasted=text(fd,'csv');
+  if(file instanceof File&&file.size>MAX_COST_IMPORT_BYTES) fail('csv');
   const csv=file instanceof File&&file.size?await file.text():pasted;
   const parsed=parseCostImportCsv(csv);
   if(!weddingId||parsed.errors.length||!parsed.rows.length){

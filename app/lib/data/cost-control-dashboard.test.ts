@@ -93,4 +93,20 @@ describe('Cost Control official-position dashboard',()=>{
       unverifiedInvoices:1,
     });
   });
+
+  it('excludes disputed and void invoices from the centre official position',()=>{
+    const invoice=(id:string,state:string,total:number)=>({
+      id,commitmentId:null,reference:id,subtotal:total,taxRate:0,total,currency:'INR',
+      dueDate:null,state,payments:[],
+    });
+    const result=deriveCostControlDashboard(wedding([
+      item('invoice','travel','Transport',[estimate('e1','approved',100)],[],[
+        invoice('verified','verified',100),
+        invoice('disputed','disputed',200),
+        invoice('void','void',300),
+      ]),
+    ],[{currency:'INR',approved:100,committed:0,invoiced:100,paid:0}]));
+
+    expect(result.centres[0]?.invoiced).toBe(100);
+  });
 });

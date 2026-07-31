@@ -56,7 +56,8 @@ export function deriveCostControlDashboard(wedding:CostControlWedding):CostContr
       const approved=item.estimates.find((estimate)=>estimate.state==='approved'&&estimate.currency===currency)?.total??0;
       const committed=item.commitments.find((commitment)=>commitment.state==='approved'&&commitment.currency===currency)?.total??0;
       const exposure=Math.max(committed-approved,0);
-      const invoiced=item.invoices.filter((invoice)=>invoice.currency===currency&&invoice.state!=='void').reduce((sum,invoice)=>sum+invoice.total,0);
+      const invoiced=item.invoices.filter((invoice)=>invoice.currency===currency&&!['void','disputed'].includes(invoice.state))
+        .reduce((sum,invoice)=>sum+invoice.total,0);
       const paid=item.invoices.filter((invoice)=>invoice.currency===currency).flatMap((invoice)=>invoice.payments)
         .filter((payment)=>!payment.voided).reduce((sum,payment)=>sum+payment.amount,0);
       const key=`${item.centreId}:${currency}`;

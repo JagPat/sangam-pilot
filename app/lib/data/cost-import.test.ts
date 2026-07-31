@@ -79,4 +79,12 @@ line-4,Unknown centre,400,INR,0,Missing,,,`);
       {id:'line-4',resolution:'unresolved',centre:null,item:null},
     ]);
   });
+
+  it('rejects batches beyond the database row limit before staging',()=>{
+    const rows=Array.from({length:501},(_,index)=>`line-${index},Item ${index},1,INR,0,Entertainment,,,`);
+    const result=parseCostImportCsv([header,...rows].join('\n'));
+
+    expect(result.rows).toEqual([]);
+    expect(result.errors).toEqual(['CSV may contain at most 500 data rows.']);
+  });
 });
