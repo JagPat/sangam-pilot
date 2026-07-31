@@ -42,6 +42,13 @@ type CostDecisionRow = { id: string; wedding_id: string; cost_item_id: string; e
 type CostCommitmentRow = { id: string; wedding_id: string; cost_item_id: string; approved_estimate_id: string; engagement_id: string | null; quote_reference: string | null; subtotal: number; tax_amount: number; total: number; currency_code: string; commitment_date: string | null; state: string; proposed_by_account_id: string; approved_by_account_id: string | null; decision_reason: string | null; created_at: string; decided_at: string | null };
 type CostInvoiceRow = { id: string; wedding_id: string; cost_item_id: string; commitment_id: string | null; invoice_reference: string; subtotal: number; tax_rate: number; tax_amount: number; total: number; currency_code: string; due_date: string | null; state: string; received_by_account_id: string; verified_by_account_id: string | null; verification_reason: string | null; created_at: string; verified_at: string | null };
 type CostPaymentRow = { id: string; wedding_id: string; invoice_id: string; amount: number; paid_on: string; method: string; official_reference: string | null; recorded_by_account_id: string; voided_at: string | null; voided_by_account_id: string | null; void_reason: string | null; created_at: string };
+type CostImportBatchRow = { id:string; wedding_id:string; import_key:string; source_name:string; payload_hash:string; state:string; created_by_account_id:string; created_at:string; committed_at:string|null };
+type CostImportLineRow = {
+  id:string; wedding_id:string; batch_id:string; source_line_id:string; source_order:number; title:string;
+  cost_centre_id:string|null; matched_cost_item_id:string|null; subtotal:number; tax_rate:number; currency_code:string;
+  scope_included:string|null; scope_excluded:string|null; resolution:string; match_confirmed:boolean;
+  committed_item_id:string|null; committed_estimate_id:string|null; created_at:string;
+};
 type CostControlSummaryRow = { wedding_id: string; currency_code: string; approved_estimate_total: number; committed_total: number; invoiced_total: number; paid_total: number };
 type CostControlAttentionRow = { wedding_id: string; cost_item_id: string; attention_kind: string; due_at: string; label: string };
 type VendorRow = { id: string; wedding_id: string; category: string; name: string; contact_name: string | null; email: string | null; phone: string | null; host_group_id: string | null; notes: string | null; created_at: string };
@@ -126,6 +133,8 @@ export type Database = {
       cost_commitment: { Row: CostCommitmentRow; Insert: Partial<CostCommitmentRow>; Update: Partial<CostCommitmentRow>; Relationships: [] };
       cost_invoice: { Row: CostInvoiceRow; Insert: Partial<CostInvoiceRow>; Update: Partial<CostInvoiceRow>; Relationships: [] };
       cost_payment: { Row: CostPaymentRow; Insert: Partial<CostPaymentRow>; Update: Partial<CostPaymentRow>; Relationships: [] };
+      cost_import_batch: { Row: CostImportBatchRow; Insert: Partial<CostImportBatchRow>; Update: Partial<CostImportBatchRow>; Relationships: [] };
+      cost_import_line: { Row: CostImportLineRow; Insert: Partial<CostImportLineRow>; Update: Partial<CostImportLineRow>; Relationships: [] };
       vendor: { Row: VendorRow; Insert: Partial<VendorRow>; Update: Partial<VendorRow>; Relationships: [] };
       engagement: { Row: EngagementRow; Insert: Partial<EngagementRow>; Update: Partial<EngagementRow>; Relationships: [] };
       guest_dietary_profile: { Row: GuestDietaryProfileRow; Insert: Partial<GuestDietaryProfileRow>; Update: Partial<GuestDietaryProfileRow>; Relationships: [] };
@@ -315,6 +324,10 @@ export type Database = {
       verify_cost_invoice: { Args: { p_wedding:string; p_invoice:string; p_reason:string }; Returns:undefined };
       record_cost_payment: { Args: { p_wedding:string; p_invoice:string; p_amount:number; p_paid_on:string; p_method:string; p_reference:string|null }; Returns:string };
       void_cost_payment: { Args: { p_wedding:string; p_payment:string; p_reason:string }; Returns:undefined };
+      stage_cost_import: { Args: { p_wedding:string; p_import_key:string; p_source_name:string; p_lines:Json }; Returns:string };
+      confirm_cost_import_matches: { Args: { p_wedding:string; p_batch:string; p_line_ids:string[] }; Returns:number };
+      resolve_cost_import_line: { Args: { p_wedding:string; p_line:string; p_centre:string; p_matched_item:string|null }; Returns:undefined };
+      commit_cost_import: { Args: { p_wedding:string; p_batch:string }; Returns:Json };
       // Owner-gated read: operators + their email (which account RLS otherwise hides).
       owner_list_operators: {
         Args: { p_wedding: string };
