@@ -2,7 +2,7 @@ import { requireVerifiedUser } from '@/lib/auth/session';
 import { pageClient } from '@/lib/supabase/pageClient';
 import { deriveCostControlDashboard,getCostControl,getEstimateDraftControls,type CostControlWedding,type CostControlItem } from '@/lib/data/cost-control';
 import { HostNav } from '../HostNav';
-import { addCostItem,beginEstimateReview,decideCommitment,decideEstimate,initializeCostControl,proposeCommitment,recordInvoice,recordPayment,saveEstimate,submitEstimate,verifyInvoice,voidPayment } from './actions';
+import { addCostItem,decideCommitment,initializeCostControl,proposeCommitment,recordInvoice,recordPayment,saveEstimate,submitEstimate,verifyInvoice,voidPayment } from './actions';
 import { CostControlNav } from './CostControlNav';
 
 export const dynamic='force-dynamic';
@@ -19,10 +19,9 @@ function EstimateForm({w,item,estimate}:{w:string;item:string;estimate?:CostCont
   <label className="sg-field"><span className="sg-label">Remarks</span><input className="sg-input" name="remarks" defaultValue={estimate?.remarks??''}/></label>
   <button className="sg-btn sg-btn--primary" type="submit">Save draft</button></form>;}
 
-function DecisionForm({w,id,kind}:{w:string;id:string;kind:'estimate'|'commitment'}){
-  const action=kind==='estimate'?decideEstimate:decideCommitment;
-  return <form action={action} className="sg-formrow"><Hidden w={w}/><input type="hidden" name={kind==='estimate'?'estimateId':'commitmentId'} value={id}/>
-    <select className="sg-select" name="decision"><option value="approved">Approve</option>{kind==='estimate'?<option value="revision_required">Request revision</option>:null}<option value="rejected">Reject</option></select>
+function CommitmentDecisionForm({w,id}:{w:string;id:string}){
+  return <form action={decideCommitment} className="sg-formrow"><Hidden w={w}/><input type="hidden" name="commitmentId" value={id}/>
+    <select className="sg-select" name="decision"><option value="approved">Approve</option><option value="rejected">Reject</option></select>
     <input className="sg-input" name="reason" required placeholder="Decision reason"/><button className="sg-btn sg-btn--primary">Record decision</button></form>;
 }
 
@@ -30,12 +29,11 @@ function ItemCard({w,item}:{w:CostControlWedding;item:CostControlItem}){const ap
   return <section className="sg-section"><h2>{item.title} <span className="sg-badge is-off">{item.state}</span></h2><p className="sg-muted">{item.centreName}{item.description?` · ${item.description}`:''}</p>
     <h3>Estimate versions</h3>{item.estimates.length?<div className="sg-tablewrap"><table className="sg-table"><thead><tr><th>Version</th><th>Status</th><th>Total</th><th>Action</th></tr></thead><tbody>{item.estimates.map((e)=><tr key={e.id}><td>v{e.version}</td><td>{e.state.replace('_',' ')}</td><td>{money(e.total,e.currency)}</td><td>
       {e.state==='draft'&&e.canEditDraft?<><details><summary>Edit draft</summary><EstimateForm w={w.weddingId} item={item.id} estimate={e}/></details><form action={submitEstimate}><Hidden w={w.weddingId}/><input type="hidden" name="estimateId" value={e.id}/><button className="sg-btn sg-btn--sm">Submit</button></form></>:null}
-      {e.state==='submitted'&&w.isCostApprover?<form action={beginEstimateReview}><Hidden w={w.weddingId}/><input type="hidden" name="estimateId" value={e.id}/><button className="sg-btn sg-btn--sm">Start review</button></form>:null}
-      {e.state==='under_review'&&w.isCostApprover?<DecisionForm w={w.weddingId} id={e.id} kind="estimate"/>:null}
+      {['submitted','under_review'].includes(e.state)?<a className="sg-textlink" href="/host/cost-control/decisions">Open in Decisions →</a>:null}
     </td></tr>)}</tbody></table></div>:<p className="sg-muted">No estimate yet.</p>}
     {draftControls.showCreateDraft?<details><summary>{draftControls.createDraftLabel}</summary><EstimateForm w={w.weddingId} item={item.id}/></details>:null}
     {approved?<details><summary>Propose official commitment</summary><form action={proposeCommitment} className="sg-formrow"><Hidden w={w.weddingId} item={item.id}/><input type="hidden" name="estimateId" value={approved.id}/><input className="sg-input" name="reference" placeholder="Quote / contract reference"/><input className="sg-input" type="date" name="commitmentDate"/><button className="sg-btn sg-btn--primary">Propose</button></form></details>:null}
-    {item.commitments.length?<><h3>Commitments</h3>{item.commitments.map((c)=><div key={c.id} className="sg-callout"><strong>{money(c.total,c.currency)}</strong> · {c.state}{c.reference?` · ${c.reference}`:''}{c.state==='proposed'&&w.isCostApprover?<DecisionForm w={w.weddingId} id={c.id} kind="commitment"/>:null}</div>)}</>:null}
+    {item.commitments.length?<><h3>Commitments</h3>{item.commitments.map((c)=><div key={c.id} className="sg-callout"><strong>{money(c.total,c.currency)}</strong> · {c.state}{c.reference?` · ${c.reference}`:''}{c.state==='proposed'&&w.isCostApprover?<CommitmentDecisionForm w={w.weddingId} id={c.id}/>:null}</div>)}</>:null}
     <details><summary>Official records (optional)</summary><p className="sg-muted">Invoices and payment status are optional. Estimate and approval tracking remains the default journey.</p>{approvedCommitments.map((c)=><details key={c.id}><summary>Record invoice against {c.reference??'approved commitment'}</summary><form action={recordInvoice} className="sg-formrow"><Hidden w={w.weddingId} item={item.id}/><input type="hidden" name="commitmentId" value={c.id}/><input className="sg-input" name="reference" required placeholder="Invoice reference"/><input className="sg-input" type="number" min="0" step="0.01" name="subtotal" required placeholder="Subtotal"/><input className="sg-input" type="number" min="0" max="100" step="0.01" name="taxRate" defaultValue="0"/><select className="sg-select" name="currency" defaultValue={c.currency}><option>INR</option><option>USD</option></select><input className="sg-input" type="date" name="dueDate"/><button className="sg-btn sg-btn--primary">Record invoice</button></form></details>)}
     {item.invoices.length?<><h3>Official invoices</h3>{item.invoices.map((i)=><div className="sg-callout" key={i.id}><strong>{i.reference}</strong> · {money(i.total,i.currency)} · {i.state.replace('_',' ')}
       {i.state==='received'&&w.isCostApprover?<form action={verifyInvoice} className="sg-formrow"><Hidden w={w.weddingId}/><input type="hidden" name="invoiceId" value={i.id}/><input className="sg-input" name="reason" required placeholder="Verification reason"/><button className="sg-btn sg-btn--primary">Verify</button></form>:null}

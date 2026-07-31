@@ -24,6 +24,11 @@ export type CostControlDashboard={
   attention:{awaitingDecisions:number;exposedItems:number;unestimatedItems:number;unverifiedInvoices:number};
   centres:CostControlCentrePosition[];
 };
+export type CostControlDecisionItem={
+  itemId:string;itemTitle:string;centreName:string;
+  estimate:CostControlEstimate;previousVersion:CostControlEstimate|null;approvedBaseline:CostControlEstimate|null;
+  changeFromPrevious:number|null;changeFromApproved:number|null;exposure:number;
+};
 
 export function getEstimateDraftControls(estimates:Pick<CostControlEstimate,'id'|'state'|'canEditDraft'>[]):{showCreateDraft:boolean;createDraftLabel:'Create estimate draft'|'Create a revised estimate'|null}{
   if(estimates.some((estimate)=>estimate.state==='draft')) return {showCreateDraft:false,createDraftLabel:null};
@@ -77,6 +82,31 @@ export function deriveCostControlDashboard(wedding:CostControlWedding):CostContr
       .filter((row)=>row.approved||row.committed||row.invoiced||row.paid)
       .sort((a,b)=>b.exposure-a.exposure||a.centreName.localeCompare(b.centreName)||a.currency.localeCompare(b.currency)),
   };
+}
+
+export function deriveDecisionQueue(wedding:CostControlWedding):CostControlDecisionItem[]{
+  const queue:CostControlDecisionItem[]=[];
+  for(const item of wedding.items){
+    const ordered=[...item.estimates].sort((a,b)=>b.version-a.version);
+    for(const estimate of ordered.filter((candidate)=>candidate.state==='submitted'||candidate.state==='under_review')){
+      const previousVersion=ordered.find((candidate)=>candidate.version<estimate.version)??null;
+      const approvedBaseline=ordered.find((candidate)=>candidate.state==='approved')??null;
+      const approvedCommitment=item.commitments.find((commitment)=>commitment.state==='approved'&&commitment.currency===estimate.currency);
+      queue.push({
+        itemId:item.id,itemTitle:item.title,centreName:item.centreName,estimate,previousVersion,approvedBaseline,
+        changeFromPrevious:previousVersion?.currency===estimate.currency?estimate.total-previousVersion.total:null,
+        changeFromApproved:approvedBaseline?.currency===estimate.currency?estimate.total-approvedBaseline.total:null,
+        exposure:approvedBaseline&&approvedCommitment
+          ?Math.max(approvedCommitment.total-approvedBaseline.total,0)
+          :0,
+      });
+    }
+  }
+  return queue.sort((a,b)=>{
+    const aDue=a.estimate.decisionDue??'9999';
+    const bDue=b.estimate.decisionDue??'9999';
+    return aDue.localeCompare(bDue)||a.centreName.localeCompare(b.centreName)||a.itemTitle.localeCompare(b.itemTitle);
+  });
 }
 
 export function mapCostControlWedding(
