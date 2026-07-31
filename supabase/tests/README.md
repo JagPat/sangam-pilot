@@ -74,6 +74,10 @@ Each script prints `OK…` lines and raises loudly on any `FAIL`. A clean exit =
   bounded payment status, currency-separated aggregate totals, and direct-DML denial.
 - **22_legacy_finance_transition.sql** — all legacy-finance mappings are quarantined with no Cost Control copies,
   while the retained legacy rows and every former endpoint remain sealed.
+- **29_cost_import_staging.sql** — controlled official-line import under real database roles: unrelated users
+  and wedding owners see no rows; approvers are read-only; event managers stage/resolve/confirm/commit; private
+  labels and cross-wedding targets are rejected; unresolved, unconfirmed, and active-draft collisions block the
+  batch atomically; matched lines add only a new draft; create lines add an item plus draft; and retries are no-ops.
 
 Every suite runs under the single `scripts/run-sql-suites.sh` command above.
 

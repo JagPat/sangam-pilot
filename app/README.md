@@ -39,6 +39,9 @@ migrations, RLS, and `propose/confirm` RSVP contract.
 
 - Sign-in is code-only and sessions persist until Supabase expires or revokes them.
 - Schedule and RSVP are implemented for Slice-1.
+- Cost Control now provides an official-position dashboard, a separate approver decision queue, and an
+  event-manager-only staged CSV import. Imports create draft estimates only and never accept private family
+  finance fields.
 - Recipient-bound invite exchange is implemented but disabled in production pending the real-auth/browser gate.
 
 ## Env

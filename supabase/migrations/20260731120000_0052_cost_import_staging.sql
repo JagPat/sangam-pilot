@@ -32,7 +32,7 @@ create table app.cost_import_line(
   matched_cost_item_id uuid,
   subtotal numeric(14,2) not null check(subtotal>=0),
   tax_rate numeric(7,4) not null default 0 check(tax_rate between 0 and 100),
-  currency_code char(3) not null check(currency_code ~ '^[A-Z]{3}$'),
+  currency_code char(3) not null check(currency_code in ('INR','USD')),
   scope_included text check(length(scope_included)<=2000),
   scope_excluded text check(length(scope_excluded)<=2000),
   resolution app.cost_import_resolution not null,
@@ -92,6 +92,7 @@ begin
     or nullif(trim(coalesce(p_source_name,'')),'') is null or length(trim(p_source_name))>200 then
     raise exception 'import key and source name are required' using errcode='22023';
   end if;
+  perform app.assert_official_cost_text(p_source_name);
   if jsonb_typeof(p_lines)<>'array' or jsonb_array_length(p_lines)<1 or jsonb_array_length(p_lines)>500 then
     raise exception 'import must contain between 1 and 500 lines' using errcode='22023';
   end if;
@@ -125,7 +126,7 @@ begin
     perform app.assert_official_cost_text(v_line->>'scope_excluded');
     if v_source='' or length(v_source)>200 or v_title='' or length(v_title)>200
       or v_subtotal is null or v_subtotal<0 or v_tax not between 0 and 100
-      or v_currency !~ '^[A-Z]{3}$' or v_resolution not in('matched','create','unresolved') then
+      or v_currency not in('INR','USD') or v_resolution not in('matched','create','unresolved') then
       raise exception 'invalid official import line %',v_order using errcode='22023';
     end if;
 
@@ -222,7 +223,7 @@ begin
     raise exception 'event manager required for cost import' using errcode='42501';
   end if;
   select state into v_state from app.cost_import_batch
-    where wedding_id=p_wedding and id=p_batch and created_by_account_id=v_actor for update;
+    where wedding_id=p_wedding and id=p_batch for update;
   if not found then raise exception 'unknown cost import batch' using errcode='42501'; end if;
   if v_state='committed' then return jsonb_build_object('written_lines',0,'idempotent',true); end if;
   if not exists(select 1 from app.cost_import_line where wedding_id=p_wedding and batch_id=p_batch) then
@@ -231,6 +232,13 @@ begin
   if exists(select 1 from app.cost_import_line where wedding_id=p_wedding and batch_id=p_batch
     and (resolution='unresolved' or (resolution='matched' and not match_confirmed))) then
     raise exception 'every import line must be resolved and every match confirmed' using errcode='23514';
+  end if;
+  if exists(
+    select 1 from app.cost_import_line
+    where wedding_id=p_wedding and batch_id=p_batch and resolution='matched'
+    group by matched_cost_item_id having count(*)>1
+  ) then
+    raise exception 'an existing item can be matched only once per import batch' using errcode='23514';
   end if;
   if exists(
     select 1 from app.cost_import_line l
@@ -243,6 +251,17 @@ begin
   perform 1 from app.cost_item i where i.wedding_id=p_wedding and i.id in(
     select matched_cost_item_id from app.cost_import_line where wedding_id=p_wedding and batch_id=p_batch
   ) order by i.id for update;
+
+  -- Recheck after acquiring every target-item lock. A concurrent draft save or another import may have
+  -- committed while this transaction was waiting; the later transaction must fail instead of creating
+  -- a second editable draft or racing the version number.
+  if exists(
+    select 1 from app.cost_import_line l
+    join app.cost_estimate_version e on e.wedding_id=l.wedding_id and e.cost_item_id=l.matched_cost_item_id and e.state='draft'
+    where l.wedding_id=p_wedding and l.batch_id=p_batch and l.resolution='matched'
+  ) then
+    raise exception 'a matched item already has an active draft' using errcode='23514';
+  end if;
 
   for v_line in select * from app.cost_import_line
     where wedding_id=p_wedding and batch_id=p_batch order by source_order for update
@@ -268,6 +287,8 @@ begin
   end loop;
   update app.cost_import_batch set state='committed',committed_at=now()
     where wedding_id=p_wedding and id=p_batch;
+  insert into app.audit_event(wedding_id,actor_account_id,action,target_ref,safe_summary)
+  values(p_wedding,v_actor,'import',p_batch::text,'official cost import committed: '||v_written||' draft line(s)');
   return jsonb_build_object('written_lines',v_written,'idempotent',false);
 end $$;
 

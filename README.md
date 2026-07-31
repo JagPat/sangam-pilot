@@ -58,6 +58,23 @@ Event managers and separately appointed cost approvers use `/host/cost-control`.
 target/approved estimates, commitments, invoices, and payment status. It never records family contributions,
 bank statements, sources of funds, private balances, or which family funded an item.
 
+Cost Control has three role-scoped routes:
+
+- `/host/cost-control` — official position, attention counts, cost-centre exposure, and operational records;
+- `/host/cost-control/decisions` — submitted-estimate context and decisions for appointed cost approvers; and
+- `/host/cost-control/import` — controlled CSV staging for event managers, with a read-only preview for cost
+  approvers.
+
+The import header is exactly:
+
+```csv
+source_line_id,title,subtotal,currency,tax_rate,cost_centre,match_item,scope_included,scope_excluded
+```
+
+Only `INR` and `USD` are accepted. Centre/item matching is exact and case-insensitive—never fuzzy. Unresolved
+lines and unconfirmed matches block the entire commit, and a successful import creates editable draft
+estimates only; it never submits or approves them. The database makes a retry of the same import a no-op.
+
 ## Non-negotiable invariants (see `docs/adr/0001`)
 
 - RSVP goes **only** through `propose_rsvp_change` → `confirm_rsvp_change`. Never write `event_attendance`

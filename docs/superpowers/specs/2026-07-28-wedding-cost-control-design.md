@@ -263,6 +263,25 @@ An assigned event manager sees a hierarchy browser, filters by event/vendor/stat
 
 Approvers receive a queue showing the submitted scope, current proposal, earlier versions, variance, alternatives, decision deadline, and decision history. Approval requires confirmation; revision and rejection require a reason.
 
+### Controlled official-line import
+
+The event-manager import route accepts a CSV with this exact header:
+
+`source_line_id,title,subtotal,currency,tax_rate,cost_centre,match_item,scope_included,scope_excluded`
+
+It is a staging boundary, not a direct spreadsheet-to-ledger write:
+
+- only an appointed event manager may stage, resolve, confirm matches, or commit;
+- an appointed cost approver may inspect the staged batch but cannot mutate it;
+- exact case-insensitive centre/item matches may be proposed, but existing-item matches require explicit confirmation;
+- unresolved lines, unconfirmed matches, cross-wedding IDs, prohibited private-finance language, and an existing editable draft block the whole batch;
+- a successful atomic commit creates cost items where required and draft estimates only;
+- `source_line_id` and the wedding-scoped import key make retries idempotent; and
+- no ceiling, family opinion, affordability, contribution, funding source, payer, bank, balance, or settlement field exists in the staging schema or application payload.
+
+This controlled CSV path is the first implementation of the originally proposed spreadsheet import. Immediate
+cell-to-database synchronization, fuzzy matching, and last-write-wins remain prohibited.
+
 ## 8. Migration from the current application
 
 The existing implementation has two domains: manager-facing `finance_cost_item` and private family tables (`finance_expense`, `finance_expense_allocation`, and `finance_net_position`) plus the funding signal.
@@ -293,6 +312,7 @@ The migration must not silently delete production records, but its terminal stat
 - invoice and payment status;
 - GST-aware official totals;
 - variance and upcoming-decision dashboard;
+- controlled CSV import with staging, explicit match confirmation, atomic commit, and idempotent retries;
 - append-only decision/audit history;
 - role-specific UI and adversarial RLS tests; and
 - removal of funding/private-finance application access.
@@ -301,7 +321,7 @@ The migration must not silently delete production records, but its terminal stat
 
 - multiple quote comparison;
 - document attachments and retention policy;
-- Excel import with preview, validation, and reconciliation;
+- direct Excel/Google Sheets connector on top of the controlled staging boundary;
 - configurable approval thresholds;
 - selected family-review invitations; and
 - vendor portal.
@@ -328,6 +348,9 @@ Database and real-auth tests must prove:
 - no authenticated actor can call ungranted definer helpers;
 - the manager-visible payload contains no host-group, funding, contribution, allocation, balance, or settlement fields;
 - payment records contain no personal financial instrument or source-of-funds data; and
+- staged imports are invisible to unrelated users and wedding owners without a Cost Control role;
+- cost approvers cannot mutate imports, while event managers cannot use imports to approve or submit estimates;
+- unresolved/unconfirmed/colliding imports fail atomically and a committed retry writes nothing; and
 - the legacy private-finance surfaces and funding signal are inaccessible before Cost Control is enabled in production.
 
 Application tests must cover role-specific navigation, workflow transitions, duplicate submissions, stale-version decisions, currency separation, empty/error states, and accessible approval confirmation.

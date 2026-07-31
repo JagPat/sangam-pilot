@@ -6,12 +6,14 @@ insert into auth.users(id,email) values
   ('29000000-0000-0000-0000-000000000001','manager29@example.test'),
   ('29000000-0000-0000-0000-000000000002','approver29@example.test'),
   ('29000000-0000-0000-0000-000000000003','owner29@example.test'),
-  ('29000000-0000-0000-0000-000000000004','other29@example.test');
+  ('29000000-0000-0000-0000-000000000004','other29@example.test'),
+  ('29000000-0000-0000-0000-000000000005','manager29b@example.test');
 insert into app.account(id,auth_user_id,email) values
   ('29aa0000-0000-0000-0000-000000000001','29000000-0000-0000-0000-000000000001','manager29@example.test'),
   ('29aa0000-0000-0000-0000-000000000002','29000000-0000-0000-0000-000000000002','approver29@example.test'),
   ('29aa0000-0000-0000-0000-000000000003','29000000-0000-0000-0000-000000000003','owner29@example.test'),
-  ('29aa0000-0000-0000-0000-000000000004','29000000-0000-0000-0000-000000000004','other29@example.test');
+  ('29aa0000-0000-0000-0000-000000000004','29000000-0000-0000-0000-000000000004','other29@example.test'),
+  ('29aa0000-0000-0000-0000-000000000005','29000000-0000-0000-0000-000000000005','manager29b@example.test');
 insert into app.wedding(id,title) values
   ('29000000-0000-0000-0000-000000000101','Import wedding A'),
   ('29000000-0000-0000-0000-000000000102','Import wedding B');
@@ -19,9 +21,11 @@ insert into app.wedding_membership(wedding_id,account_id,status) values
   ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000001','active'),
   ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000002','active'),
   ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000003','active'),
+  ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000005','active'),
   ('29000000-0000-0000-0000-000000000102','29aa0000-0000-0000-0000-000000000004','active');
 insert into app.operator_role(wedding_id,account_id,role,host_group_id) values
   ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000001','event_manager',null),
+  ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000005','event_manager',null),
   ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000002','cost_approver',null),
   ('29000000-0000-0000-0000-000000000101','29aa0000-0000-0000-0000-000000000003','wedding_owner',null);
 insert into app.cost_centre(id,wedding_id,name) values
@@ -83,6 +87,29 @@ do $$ declare v_batch uuid; begin
     raise exception 'FAIL(cross-wedding): accepted another wedding centre';
   exception when foreign_key_violation then null;
             when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+
+  begin
+    perform app.stage_cost_import(
+      '29000000-0000-0000-0000-000000000101','currency-v1','Unsupported currency',
+      jsonb_build_array(jsonb_build_object('source_line_id','currency-1','title','Other item',
+        'subtotal',1,'tax_rate',0,'currency_code','EUR','resolution','create',
+        'cost_centre_id','29000000-0000-0000-0000-000000000201'))
+    );
+    raise exception 'FAIL(currency): direct RPC accepted a non-pilot currency';
+  exception when invalid_parameter_value then null;
+            when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+
+  begin
+    perform app.stage_cost_import(
+      '29000000-0000-0000-0000-000000000101','source-private-v1','Family contribution register',
+      jsonb_build_array(jsonb_build_object('source_line_id','source-private-1','title','Other item',
+        'subtotal',1,'tax_rate',0,'currency_code','INR','resolution','create',
+        'cost_centre_id','29000000-0000-0000-0000-000000000201'))
+    );
+    raise exception 'FAIL(source privacy): private label accepted as displayed import metadata';
+  exception when others then
+    if sqlerrm not like '%private-finance labels%' then raise; end if;
+  end;
 end $$;
 reset role;
 
@@ -114,6 +141,31 @@ do $$ begin
 end $$;
 reset role;
 
+-- Two source lines cannot silently produce competing drafts for the same matched item.
+set local role authenticated;
+select set_config('request.jwt.claims',json_build_object('sub','29000000-0000-0000-0000-000000000001')::text,true);
+do $$ declare v_batch uuid; v_lines uuid[]; begin
+  v_batch:=app.stage_cost_import(
+    '29000000-0000-0000-0000-000000000101','duplicate-target-v1','Duplicate target',
+    jsonb_build_array(
+      jsonb_build_object('source_line_id','duplicate-1','title','Headline act part one','subtotal',1,'tax_rate',0,
+        'currency_code','INR','resolution','matched','cost_centre_id','29000000-0000-0000-0000-000000000201',
+        'matched_cost_item_id','29000000-0000-0000-0000-000000000301'),
+      jsonb_build_object('source_line_id','duplicate-2','title','Headline act part two','subtotal',1,'tax_rate',0,
+        'currency_code','INR','resolution','matched','cost_centre_id','29000000-0000-0000-0000-000000000201',
+        'matched_cost_item_id','29000000-0000-0000-0000-000000000301')
+    )
+  );
+  select array_agg(id) into v_lines from app.cost_import_line where batch_id=v_batch;
+  perform app.confirm_cost_import_matches('29000000-0000-0000-0000-000000000101',v_batch,v_lines);
+  begin
+    perform app.commit_cost_import('29000000-0000-0000-0000-000000000101',v_batch);
+    raise exception 'FAIL(duplicate target): one batch created competing drafts for an item';
+  exception when check_violation then null;
+            when others then if sqlerrm like 'FAIL%' then raise; end if; end;
+end $$;
+reset role;
+
 -- Resolve and confirm, then prove an existing draft blocks the entire batch.
 set local role authenticated;
 select set_config('request.jwt.claims',json_build_object('sub','29000000-0000-0000-0000-000000000001')::text,true);
@@ -139,7 +191,9 @@ reset role;
 delete from app.cost_estimate_version where id=current_setting('sangam.t29.draft')::uuid;
 
 set local role authenticated;
-select set_config('request.jwt.claims',json_build_object('sub','29000000-0000-0000-0000-000000000001')::text,true);
+-- A second appointed event manager may finish a colleague's reviewed batch. Authority is role-scoped,
+-- while created_by_account_id and the append-only audit preserve both actors.
+select set_config('request.jwt.claims',json_build_object('sub','29000000-0000-0000-0000-000000000005')::text,true);
 do $$ declare v_batch uuid:=current_setting('sangam.t29.batch')::uuid; v_result jsonb; v_matched_item_count int; begin
   v_result:=app.commit_cost_import('29000000-0000-0000-0000-000000000101',v_batch);
   if (v_result->>'written_lines')::int<>3 then raise exception 'FAIL(commit): expected three written lines, got %',v_result; end if;
@@ -160,6 +214,11 @@ end $$;
 reset role;
 
 do $$ begin
+  if not exists(select 1 from app.audit_event where wedding_id='29000000-0000-0000-0000-000000000101'
+    and action='import' and target_ref=current_setting('sangam.t29.batch')
+    and actor_account_id='29aa0000-0000-0000-0000-000000000005') then
+    raise exception 'FAIL(audit): committing event manager was not recorded';
+  end if;
   if exists(select 1 from information_schema.role_table_grants where table_schema='app'
     and table_name in('cost_import_batch','cost_import_line') and grantee='authenticated'
     and privilege_type in('INSERT','UPDATE','DELETE')) then
