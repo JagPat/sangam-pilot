@@ -11,16 +11,16 @@ const text=(fd:FormData,key:string)=>String(fd.get(key)??'').trim();
 const optional=(fd:FormData,key:string)=>text(fd,key)||null;
 const number=(fd:FormData,key:string)=>Number(text(fd,key));
 const official=(...values:string[])=>values.every((value)=>validateOfficialCostText(value).ok);
-const finish=()=>{revalidatePath('/host/cost-control');redirect('/host/cost-control?ok=1');};
+const finish=(returnTo?:string)=>{const target=returnTo==='/host/cost-control/decisions'?returnTo:'/host/cost-control';revalidatePath('/host/cost-control');revalidatePath('/host/cost-control/decisions');redirect(`${target}?ok=1`);};
 const fail=(code='save'):never=>redirect(`/host/cost-control?err=${encodeURIComponent(code)}`);
 
-async function command(name:FunctionName,args:Record<string,unknown>){
+async function command(name:FunctionName,args:Record<string,unknown>,returnTo?:string){
   try{
     const app=(await serverClientRW()).schema('app');
     const {error}=await app.rpc(name,args as never);
     if(error) throw error;
   }catch(error){console.error(`[sangam cost-control] ${name}`,error);fail();}
-  finish();
+  finish(returnTo);
 }
 
 export async function initializeCostControl(fd:FormData){await command('initialize_cost_control',{p_wedding:text(fd,'weddingId')});}
@@ -39,8 +39,8 @@ export async function saveEstimate(fd:FormData){
       scope_excluded:optional(fd,'scopeExcluded'),remarks:optional(fd,'remarks'),decision_due_at:optional(fd,'decisionDue')}});
 }
 export async function submitEstimate(fd:FormData){await command('submit_cost_estimate',{p_wedding:text(fd,'weddingId'),p_estimate:text(fd,'estimateId')});}
-export async function beginEstimateReview(fd:FormData){await command('begin_cost_review',{p_wedding:text(fd,'weddingId'),p_estimate:text(fd,'estimateId')});}
-export async function decideEstimate(fd:FormData){if(!official(text(fd,'reason'))) fail('privacy');await command('decide_cost_estimate',{p_wedding:text(fd,'weddingId'),p_estimate:text(fd,'estimateId'),p_decision:text(fd,'decision'),p_reason:text(fd,'reason'),p_expected_state:'under_review'});}
+export async function beginEstimateReview(fd:FormData){await command('begin_cost_review',{p_wedding:text(fd,'weddingId'),p_estimate:text(fd,'estimateId')},text(fd,'returnTo'));}
+export async function decideEstimate(fd:FormData){if(!official(text(fd,'reason'))) fail('privacy');await command('decide_cost_estimate',{p_wedding:text(fd,'weddingId'),p_estimate:text(fd,'estimateId'),p_decision:text(fd,'decision'),p_reason:text(fd,'reason'),p_expected_state:'under_review'},text(fd,'returnTo'));}
 export async function proposeCommitment(fd:FormData){if(!official(text(fd,'reference'))) fail('privacy');await command('propose_cost_commitment',{p_wedding:text(fd,'weddingId'),p_item:text(fd,'itemId'),p_estimate:text(fd,'estimateId'),p_engagement:null,p_quote_reference:optional(fd,'reference'),p_commitment_date:optional(fd,'commitmentDate')});}
 export async function decideCommitment(fd:FormData){if(!official(text(fd,'reason'))) fail('privacy');await command('decide_cost_commitment',{p_wedding:text(fd,'weddingId'),p_commitment:text(fd,'commitmentId'),p_decision:text(fd,'decision'),p_reason:text(fd,'reason')});}
 export async function recordInvoice(fd:FormData){

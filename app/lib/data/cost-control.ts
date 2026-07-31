@@ -15,10 +15,99 @@ export type CostControlInvoice={id:string;commitmentId:string|null;reference:str
 export type CostControlPayment={id:string;amount:number;paidOn:string;method:string;reference:string|null;voided:boolean};
 export type CostControlItem={id:string;centreId:string;centreName:string;title:string;description:string|null;state:string;decisionDue:string|null;estimates:CostControlEstimate[];commitments:CostControlCommitment[];invoices:CostControlInvoice[]};
 export type CostControlWedding={weddingId:string;title:string;isEventManager:boolean;isCostApprover:boolean;centres:{id:string;name:string}[];items:CostControlItem[];summary:{currency:string;approved:number;committed:number;invoiced:number;paid:number}[]};
+export type CostControlCentrePosition={
+  centreId:string;centreName:string;currency:string;approved:number;committed:number;exposure:number;
+  exposedItems:number;invoiced:number;paid:number;
+};
+export type CostControlDashboard={
+  officialPosition:CostControlWedding['summary'];
+  attention:{awaitingDecisions:number;exposedItems:number;unestimatedItems:number;unverifiedInvoices:number};
+  centres:CostControlCentrePosition[];
+};
+export type CostControlDecisionItem={
+  itemId:string;itemTitle:string;centreName:string;
+  estimate:CostControlEstimate;previousVersion:CostControlEstimate|null;approvedBaseline:CostControlEstimate|null;
+  changeFromPrevious:number|null;changeFromApproved:number|null;exposure:number;
+};
 
 export function getEstimateDraftControls(estimates:Pick<CostControlEstimate,'id'|'state'|'canEditDraft'>[]):{showCreateDraft:boolean;createDraftLabel:'Create estimate draft'|'Create a revised estimate'|null}{
   if(estimates.some((estimate)=>estimate.state==='draft')) return {showCreateDraft:false,createDraftLabel:null};
   return {showCreateDraft:true,createDraftLabel:estimates.length?'Create a revised estimate':'Create estimate draft'};
+}
+
+export function deriveCostControlDashboard(wedding:CostControlWedding):CostControlDashboard{
+  const centres=new Map<string,CostControlCentrePosition>();
+  let awaitingDecisions=0;
+  let exposedItems=0;
+  let unestimatedItems=0;
+  let unverifiedInvoices=0;
+
+  for(const item of wedding.items){
+    awaitingDecisions+=item.estimates.filter((estimate)=>estimate.state==='submitted'||estimate.state==='under_review').length;
+    if(!item.estimates.length) unestimatedItems+=1;
+    unverifiedInvoices+=item.invoices.filter((invoice)=>invoice.state==='received').length;
+
+    const currencies=new Set([
+      ...item.estimates.map((estimate)=>estimate.currency),
+      ...item.commitments.map((commitment)=>commitment.currency),
+      ...item.invoices.map((invoice)=>invoice.currency),
+    ]);
+    for(const currency of currencies){
+      const approved=item.estimates.find((estimate)=>estimate.state==='approved'&&estimate.currency===currency)?.total??0;
+      const committed=item.commitments.find((commitment)=>commitment.state==='approved'&&commitment.currency===currency)?.total??0;
+      const exposure=Math.max(committed-approved,0);
+      const invoiced=item.invoices.filter((invoice)=>invoice.currency===currency&&!['void','disputed'].includes(invoice.state))
+        .reduce((sum,invoice)=>sum+invoice.total,0);
+      const paid=item.invoices.filter((invoice)=>invoice.currency===currency).flatMap((invoice)=>invoice.payments)
+        .filter((payment)=>!payment.voided).reduce((sum,payment)=>sum+payment.amount,0);
+      const key=`${item.centreId}:${currency}`;
+      const current=centres.get(key)??{
+        centreId:item.centreId,centreName:item.centreName,currency,approved:0,committed:0,exposure:0,
+        exposedItems:0,invoiced:0,paid:0,
+      };
+      current.approved+=approved;
+      current.committed+=committed;
+      current.exposure+=exposure;
+      current.exposedItems+=exposure>0?1:0;
+      current.invoiced+=invoiced;
+      current.paid+=paid;
+      centres.set(key,current);
+      if(exposure>0) exposedItems+=1;
+    }
+  }
+
+  return {
+    officialPosition:wedding.summary,
+    attention:{awaitingDecisions,exposedItems,unestimatedItems,unverifiedInvoices},
+    centres:[...centres.values()]
+      .filter((row)=>row.approved||row.committed||row.invoiced||row.paid)
+      .sort((a,b)=>b.exposure-a.exposure||a.centreName.localeCompare(b.centreName)||a.currency.localeCompare(b.currency)),
+  };
+}
+
+export function deriveDecisionQueue(wedding:CostControlWedding):CostControlDecisionItem[]{
+  const queue:CostControlDecisionItem[]=[];
+  for(const item of wedding.items){
+    const ordered=[...item.estimates].sort((a,b)=>b.version-a.version);
+    for(const estimate of ordered.filter((candidate)=>candidate.state==='submitted'||candidate.state==='under_review')){
+      const previousVersion=ordered.find((candidate)=>candidate.version<estimate.version)??null;
+      const approvedBaseline=ordered.find((candidate)=>candidate.state==='approved')??null;
+      const approvedCommitment=item.commitments.find((commitment)=>commitment.state==='approved'&&commitment.currency===estimate.currency);
+      queue.push({
+        itemId:item.id,itemTitle:item.title,centreName:item.centreName,estimate,previousVersion,approvedBaseline,
+        changeFromPrevious:previousVersion?.currency===estimate.currency?estimate.total-previousVersion.total:null,
+        changeFromApproved:approvedBaseline?.currency===estimate.currency?estimate.total-approvedBaseline.total:null,
+        exposure:approvedBaseline&&approvedCommitment
+          ?Math.max(approvedCommitment.total-approvedBaseline.total,0)
+          :0,
+      });
+    }
+  }
+  return queue.sort((a,b)=>{
+    const aDue=a.estimate.decisionDue??'9999';
+    const bDue=b.estimate.decisionDue??'9999';
+    return aDue.localeCompare(bDue)||a.centreName.localeCompare(b.centreName)||a.itemTitle.localeCompare(b.itemTitle);
+  });
 }
 
 export function mapCostControlWedding(
